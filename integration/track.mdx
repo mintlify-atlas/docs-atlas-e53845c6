@@ -1,0 +1,531 @@
+---
+title: 'Track Endpoint'
+description: 'Record usage events for metered features and update customer balances in real-time'
+---
+
+## Overview
+
+The `/track` endpoint records usage events for your metered features. Use it to:
+
+- Track API calls, messages, or other usage-based features
+- Deduct from customer balances in real-time
+- Bill customers for overage usage
+- Log events with custom properties for analytics
+
+## Quick Start
+
+<CodeGroup>
+
+```tsx React Frontend
+import { useCustomer } from '@useautumn/autumn-js/react';
+
+function MessageComposer() {
+  const customer = useCustomer();
+
+  const sendMessage = async () => {
+    // Send the message
+    await sendMessageAPI(messageContent);
+    
+    // Track usage (fires in background)
+    await fetch('/api/autumn/track', {
+      method: 'POST',
+      body: JSON.stringify({
+        featureId: "messages",
+        value: 1
+      })
+    });
+  };
+
+  return <button onClick={sendMessage}>Send Message</button>;
+}
+```
+
+```typescript Backend (Node.js)
+import { Autumn } from '@useautumn/sdk';
+
+const autumn = new Autumn({ 
+  secretKey: process.env.AUTUMN_SECRET_KEY 
+});
+
+// After processing an AI request
+await processAIRequest();
+
+// Track the usage
+const result = await autumn.balances.track({
+  customerId: "cus_123",
+  featureId: "ai_tokens",
+  value: 1312  // Consumed 1312 tokens
+});
+
+console.log(`Remaining: ${result.balance?.remaining}`);
+```
+
+```python Python
+from autumn import Autumn
+
+autumn = Autumn(secret_key=os.environ["AUTUMN_SECRET_KEY"])
+
+# After processing request
+process_ai_request()
+
+# Track the usage
+result = autumn.balances.track(
+    customer_id="cus_123",
+    feature_id="ai_tokens",
+    value=1312
+)
+
+print(f"Remaining: {result.balance.remaining}")
+```
+
+</CodeGroup>
+
+## Parameters
+
+<ParamField path="customerId" type="string" required>
+  The ID of the customer whose usage to track.
+</ParamField>
+
+<ParamField path="featureId" type="string">
+  The ID of the feature to track. Use either `featureId` or `eventName`.
+</ParamField>
+
+<ParamField path="eventName" type="string">
+  Event name to track usage for. Use instead of `featureId` when a single event should update multiple features.
+  
+  ```typescript
+  // Track one event that updates multiple features
+  track({ 
+    customerId: "cus_123",
+    eventName: "api_request",  // Updates both "api_calls" and "bandwidth"
+    value: 1,
+    properties: { bytes: 2048 }
+  })
+  ```
+</ParamField>
+
+<ParamField path="entityId" type="string">
+  The ID of the entity for entity-scoped tracking (e.g., per-workspace usage).
+</ParamField>
+
+<ParamField path="value" type="number" default="1">
+  The amount of usage to record. Use negative values to credit balance (e.g., when removing a seat).
+  
+  ```typescript
+  // Deduct 500 tokens
+  track({ featureId: "ai_tokens", value: 500 })
+  
+  // Credit back 100 tokens (e.g., refund)
+  track({ featureId: "ai_tokens", value: -100 })
+  ```
+</ParamField>
+
+<ParamField path="properties" type="object">
+  Additional properties to attach to the usage event for analytics and debugging.
+  
+  ```typescript
+  track({
+    featureId: "api_calls",
+    value: 1,
+    properties: {
+      endpoint: "/v1/generate",
+      model: "gpt-4",
+      responseTime: 1250,
+      userId: "usr_xyz"
+    }
+  })
+  ```
+</ParamField>
+
+## Response
+
+```typescript
+interface TrackResponse {
+  customerId: string;            // The customer ID
+  entityId?: string;             // The entity ID (if entity-scoped)
+  eventName?: string;            // Event name (if tracking by event)
+  value: number;                 // Amount recorded
+  balance: Balance | null;       // Updated balance (null for event-based)
+  balances?: Record<string, Balance>;  // Multiple balances (for event-based)
+}
+
+interface Balance {
+  featureId: string;
+  granted: number;               // Total balance granted
+  remaining: number;             // Balance remaining after this usage
+  usage: number;                 // Total usage in current period
+  unlimited: boolean;            // Whether feature is unlimited
+  overageAllowed: boolean;       // Whether overage is allowed
+  nextResetAt: number | null;    // Timestamp of next reset
+}
+```
+
+## Common Use Cases
+
+### Track API Calls
+
+<CodeGroup>
+
+```typescript Backend
+app.post('/api/generate', async (req, res) => {
+  // Process the API request
+  const result = await generateContent(req.body);
+  
+  // Track the usage
+  await autumn.balances.track({
+    customerId: req.user.id,
+    featureId: "api_calls",
+    value: 1,
+    properties: {
+      endpoint: "/api/generate",
+      model: req.body.model,
+      tokensUsed: result.tokens
+    }
+  });
+  
+  res.json(result);
+});
+```
+
+```python Python
+@app.post("/api/generate")
+async def generate(request: Request):
+    # Process request
+    result = await generate_content(request.body)
+    
+    # Track usage
+    await autumn.balances.track(
+        customer_id=request.user.id,
+        feature_id="api_calls",
+        value=1,
+        properties={
+            "endpoint": "/api/generate",
+            "model": request.body.model
+        }
+    )
+    
+    return result
+```
+
+</CodeGroup>
+
+### Track Variable Usage (Tokens, Storage, etc.)
+
+<CodeGroup>
+
+```typescript Backend
+// Track AI token usage
+const completion = await openai.completions.create({
+  model: "gpt-4",
+  prompt: userPrompt
+});
+
+await autumn.balances.track({
+  customerId: "cus_123",
+  featureId: "ai_tokens",
+  value: completion.usage.total_tokens,  // Variable amount
+  properties: {
+    model: "gpt-4",
+    promptTokens: completion.usage.prompt_tokens,
+    completionTokens: completion.usage.completion_tokens
+  }
+});
+```
+
+```python Python
+# Track storage usage
+file_size = upload_file(file_data)
+
+autumn.balances.track(
+    customer_id="cus_123",
+    feature_id="storage_gb",
+    value=file_size / (1024 ** 3),  # Convert bytes to GB
+    properties={
+        "filename": file_data.name,
+        "content_type": file_data.type
+    }
+)
+```
+
+</CodeGroup>
+
+### Event-Based Tracking (One Event, Multiple Features)
+
+Use `eventName` to track a single event that updates multiple feature balances:
+
+<CodeGroup>
+
+```typescript Backend
+// One event updates both "api_calls" and "ai_tokens" features
+const result = await autumn.balances.track({
+  customerId: "cus_123",
+  eventName: "ai_completion",  // Event name instead of featureId
+  value: 1,
+  properties: {
+    model: "gpt-4",
+    tokensUsed: 1500
+  }
+});
+
+// Response includes balances for all affected features
+console.log(result.balances);
+// {
+//   "api_calls": { remaining: 99, ... },
+//   "ai_tokens": { remaining: 8500, ... }
+// }
+```
+
+</CodeGroup>
+
+### Credit Usage (Negative Values)
+
+Use negative values to add back to a customer's balance:
+
+<CodeGroup>
+
+```typescript Backend
+// Customer removed a team member, credit back the seat
+await removeTeamMember(memberId);
+
+await autumn.balances.track({
+  customerId: "cus_123",
+  featureId: "seats",
+  value: -1,  // Credit back 1 seat
+  properties: {
+    action: "member_removed",
+    memberId: memberId
+  }
+});
+```
+
+```python Python
+# Refund tokens for failed request
+autumn.balances.track(
+    customer_id="cus_123",
+    feature_id="ai_tokens",
+    value=-1000,  # Credit back 1000 tokens
+    properties={"reason": "request_failed"}
+)
+```
+
+</CodeGroup>
+
+### Entity-Scoped Tracking (Per-Workspace)
+
+<CodeGroup>
+
+```typescript Backend
+// Track usage for a specific workspace
+await autumn.balances.track({
+  customerId: "cus_123",
+  entityId: "workspace_abc",  // Track for specific workspace
+  featureId: "api_calls",
+  value: 1,
+  properties: {
+    workspaceName: "Production"
+  }
+});
+```
+
+</CodeGroup>
+
+## Idempotency
+
+For critical operations, use an idempotency key to prevent duplicate tracking:
+
+<CodeGroup>
+
+```typescript Backend
+import { v4 as uuidv4 } from 'uuid';
+
+const requestId = uuidv4();
+
+// This request will only be processed once, even if retried
+await autumn.balances.track({
+  customerId: "cus_123",
+  featureId: "credits",
+  value: 100,
+  idempotencyKey: requestId  // Internal parameter
+});
+```
+
+</CodeGroup>
+
+<Note>
+  Idempotency keys are automatically handled for you in most cases. Only use manual idempotency keys for critical operations where duplicate tracking would cause issues.
+</Note>
+
+## Error Handling
+
+<CodeGroup>
+
+```typescript Backend
+try {
+  await autumn.balances.track({
+    customerId: "cus_123",
+    featureId: "api_calls",
+    value: 1
+  });
+} catch (error) {
+  if (error.code === "insufficient_balance") {
+    // Customer exceeded their limit and overage not allowed
+    return res.status(403).json({ 
+      error: "Usage limit exceeded" 
+    });
+  } else if (error.code === "feature_not_found") {
+    // Feature doesn't exist
+    console.error("Invalid feature ID");
+  }
+}
+```
+
+```python Python
+try:
+    autumn.balances.track(
+        customer_id="cus_123",
+        feature_id="api_calls",
+        value=1
+    )
+except AutumnError as e:
+    if e.code == "insufficient_balance":
+        return {"error": "Usage limit exceeded"}, 403
+    elif e.code == "feature_not_found":
+        print("Invalid feature ID")
+```
+
+</CodeGroup>
+
+## Check Before Track
+
+To prevent exceeding limits, check access before tracking:
+
+<CodeGroup>
+
+```typescript Backend
+// Option 1: Check then track separately
+const checkResult = await autumn.balances.check({
+  customerId: "cus_123",
+  featureId: "ai_tokens",
+  requiredBalance: 1000
+});
+
+if (!checkResult.allowed) {
+  return res.status(403).json({ error: "Insufficient tokens" });
+}
+
+await processAIRequest();
+
+await autumn.balances.track({
+  customerId: "cus_123",
+  featureId: "ai_tokens",
+  value: 1000
+});
+
+// Option 2: Atomic check + track (recommended)
+const result = await autumn.balances.check({
+  customerId: "cus_123",
+  featureId: "ai_tokens",
+  requiredBalance: 1000,
+  sendEvent: true  // Atomically check AND track
+});
+
+if (!result.allowed) {
+  return res.status(403).json({ error: "Insufficient tokens" });
+}
+
+// Usage already tracked, just process request
+await processAIRequest();
+```
+
+</CodeGroup>
+
+<Tip>
+  Use `check` with `sendEvent: true` for atomic check + track operations. This prevents race conditions where usage could be tracked even when the balance is insufficient.
+</Tip>
+
+## Batch Tracking
+
+For high-volume scenarios, batch multiple track calls:
+
+<CodeGroup>
+
+```typescript Backend
+// Process multiple requests
+const requests = await processBatchRequests(batchData);
+
+// Track all usage in parallel
+await Promise.all(
+  requests.map(req => 
+    autumn.balances.track({
+      customerId: req.customerId,
+      featureId: "api_calls",
+      value: 1,
+      properties: { batchId: batchData.id }
+    })
+  )
+);
+```
+
+</CodeGroup>
+
+## Query Parameters
+
+<ParamField query="skipCache" type="boolean" default="false">
+  Bypass cache for fresh balance data.
+</ParamField>
+
+<ParamField query="expand" type="string[]">
+  Expand related objects. Supports: `"balance.feature"`
+</ParamField>
+
+## Analytics and Reporting
+
+Use the `properties` field to add context for analytics:
+
+```typescript
+await autumn.balances.track({
+  customerId: "cus_123",
+  featureId: "api_calls",
+  value: 1,
+  properties: {
+    // Request context
+    endpoint: "/v1/generate",
+    method: "POST",
+    
+    // Feature details
+    model: "gpt-4",
+    temperature: 0.7,
+    
+    // Performance metrics
+    responseTime: 1250,
+    tokensGenerated: 500,
+    
+    // User context
+    userId: "usr_xyz",
+    workspaceId: "ws_abc",
+    
+    // Business context
+    plan: "enterprise",
+    region: "us-east-1"
+  }
+});
+```
+
+These properties are available in your analytics dashboard and can be queried via the Events API.
+
+## Related Endpoints
+
+- [Check Endpoint](/integration/check) - Verify access before tracking
+- [Webhooks](/integration/webhooks) - Listen for usage threshold events
+- [Events API](/api/events/list) - Query historical usage data
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Check Access" icon="lock" href="/integration/check">
+    Verify feature access before operations
+  </Card>
+  <Card title="Set Up Webhooks" icon="webhook" href="/integration/webhooks">
+    Listen for threshold and limit events
+  </Card>
+</CardGroup>

@@ -1,0 +1,197 @@
+---
+title: 'List Customers'
+openapi: 'POST /v1/customers.list'
+---
+
+Retrieves a paginated list of customers with optional filtering.
+
+## Request Body
+
+<ParamField body="limit" type="integer" default="10">
+  Number of items to return. Default is 10, maximum is 1000.
+</ParamField>
+
+<ParamField body="offset" type="integer" default="0">
+  Number of items to skip before returning results. Used for pagination.
+</ParamField>
+
+<ParamField body="plans" type="array">
+  Filter by plan ID and version. Returns customers with active subscriptions to the specified plans.
+  
+  Each item in the array should have:
+  - `id` (string, required) - The plan ID
+  - `versions` (array of numbers, optional) - Specific plan versions to filter by
+  
+  Example: `[{"id": "pro_plan", "versions": [1, 2]}]`
+</ParamField>
+
+<ParamField body="subscription_status" type="string">
+  Filter by subscription status. Available options:
+  - `active` - Only customers with active subscriptions
+  - `scheduled` - Only customers with scheduled subscriptions
+  
+  Defaults to returning both active and scheduled if not specified.
+</ParamField>
+
+<ParamField body="search" type="string">
+  Search customers by ID, name, or email. Performs a case-insensitive partial match.
+</ParamField>
+
+## Response
+
+Returns a paginated response with the following structure:
+
+<ResponseField name="list" type="array">
+  Array of Customer objects matching the filter criteria. Each customer includes all standard customer fields (id, name, email, subscriptions, balances, etc.).
+</ResponseField>
+
+<ResponseField name="offset" type="number">
+  The offset value used for this request.
+</ResponseField>
+
+<ResponseField name="limit" type="number">
+  The limit value used for this request.
+</ResponseField>
+
+<ResponseField name="total" type="number">
+  Total number of customers matching the filter criteria.
+</ResponseField>
+
+<ResponseField name="has_more" type="boolean">
+  Whether there are more results available beyond this page.
+</ResponseField>
+
+## Example Requests
+
+<CodeGroup>
+
+```typescript Basic Pagination
+const response = await autumn.customers.list({
+  limit: 20,
+  offset: 0
+});
+
+console.log(`Found ${response.total} total customers`);
+console.log(`Showing ${response.list.length} customers`);
+```
+
+```typescript Filter by Plan
+const response = await autumn.customers.list({
+  plans: [
+    { id: "pro_plan" },
+    { id: "enterprise_plan", versions: [2, 3] }
+  ],
+  subscription_status: "active"
+});
+```
+
+```typescript Search Customers
+const response = await autumn.customers.list({
+  search: "acme",
+  limit: 50
+});
+```
+
+```python Python SDK
+response = autumn.customers.list(
+    limit=20,
+    offset=0,
+    search="john"
+)
+
+for customer in response.list:
+    print(f"{customer.name} - {customer.email}")
+```
+
+```bash cURL
+curl -X POST https://api.useautumn.com/v1/customers.list \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "x-api-version: 2.1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "limit": 20,
+    "offset": 0,
+    "search": "acme"
+  }'
+```
+
+</CodeGroup>
+
+## Example Response
+
+```json
+{
+  "list": [
+    {
+      "id": "cus_123",
+      "name": "John Doe",
+      "email": "john@acme.com",
+      "created_at": 1771409161016,
+      "fingerprint": null,
+      "stripe_id": "cus_U0BKxpq1mFhuJO",
+      "env": "sandbox",
+      "metadata": {},
+      "send_email_receipts": false,
+      "subscriptions": [
+        {
+          "plan_id": "pro_plan",
+          "status": "active",
+          "auto_enable": false,
+          "add_on": false,
+          "past_due": false,
+          "started_at": 1771431921437,
+          "current_period_start": 1771431921437,
+          "current_period_end": 1771999921437,
+          "quantity": 1,
+          "canceled_at": null,
+          "expires_at": null,
+          "trial_ends_at": null
+        }
+      ],
+      "purchases": [],
+      "balances": {}
+    },
+    {
+      "id": "cus_456",
+      "name": "Jane Smith",
+      "email": "jane@acme.com",
+      "created_at": 1771409200000,
+      "fingerprint": null,
+      "stripe_id": "cus_V1CKyqr2nGivKP",
+      "env": "sandbox",
+      "metadata": {},
+      "send_email_receipts": true,
+      "subscriptions": [],
+      "purchases": [],
+      "balances": {}
+    }
+  ],
+  "offset": 0,
+  "limit": 20,
+  "total": 2,
+  "has_more": false
+}
+```
+
+## Pagination Example
+
+Here's how to paginate through all customers:
+
+```typescript
+let offset = 0;
+const limit = 100;
+let allCustomers = [];
+
+while (true) {
+  const response = await autumn.customers.list({ limit, offset });
+  allCustomers.push(...response.list);
+  
+  if (!response.has_more) {
+    break;
+  }
+  
+  offset += limit;
+}
+
+console.log(`Retrieved ${allCustomers.length} total customers`);
+```

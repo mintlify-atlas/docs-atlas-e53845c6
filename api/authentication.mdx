@@ -1,0 +1,173 @@
+---
+title: Authentication
+description: Learn how to authenticate with the Autumn API using secret keys and publishable keys
+---
+
+## Authentication Methods
+
+Autumn supports two types of API keys for authentication:
+
+1. **Secret Keys** - Full API access for server-side operations
+2. **Publishable Keys** - Limited access for client-side operations
+
+## Secret Keys
+
+Secret keys provide full access to your Autumn API and should only be used in server-side code. Never expose secret keys in client-side code or public repositories.
+
+### Key Formats
+
+Secret keys follow these formats based on environment:
+
+- **Test/Sandbox**: `am_sk_test_...`
+- **Live/Production**: `am_sk_live_...`
+
+All secret keys must start with the `am_` prefix.
+
+### Using Secret Keys
+
+Include your secret key in the `Authorization` header as a Bearer token:
+
+```bash
+curl https://api.autumn.example/v1/customers \
+  -H "Authorization: Bearer am_sk_test_YOUR_SECRET_KEY"
+```
+
+### Example with Different Languages
+
+<CodeGroup>
+```bash cURL
+curl https://api.autumn.example/v1/customers \
+  -H "Authorization: Bearer am_sk_test_YOUR_SECRET_KEY" \
+  -H "Content-Type: application/json"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.autumn.example/v1/customers', {
+  headers: {
+    'Authorization': 'Bearer am_sk_test_YOUR_SECRET_KEY',
+    'Content-Type': 'application/json'
+  }
+});
+
+const data = await response.json();
+```
+
+```python Python
+import requests
+
+headers = {
+    'Authorization': 'Bearer am_sk_test_YOUR_SECRET_KEY',
+    'Content-Type': 'application/json'
+}
+
+response = requests.get(
+    'https://api.autumn.example/v1/customers',
+    headers=headers
+)
+
+data = response.json()
+```
+</CodeGroup>
+
+## Publishable Keys
+
+Publishable keys provide limited, read-only access to specific endpoints and can be safely used in client-side code.
+
+### Key Formats
+
+- **Test/Sandbox**: `am_pk_test_...`
+- **Live/Production**: `am_pk_live_...`
+
+### Allowed Endpoints
+
+Publishable keys can only access these endpoints:
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/v1/products` | List products |
+| `POST` | `/v1/entitled` | Check entitlements |
+| `POST` | `/v1/check` | Check feature access |
+| `GET` | `/v1/customers/:customer_id` | Get customer details |
+
+### Using Publishable Keys
+
+```bash
+curl https://api.autumn.example/v1/products \
+  -H "Authorization: Bearer am_pk_test_YOUR_PUBLISHABLE_KEY"
+```
+
+<Warning>
+Attempting to access restricted endpoints with a publishable key will return a `401 Unauthorized` error with code `endpoint_not_public`.
+</Warning>
+
+## Dashboard Authentication
+
+Requests from the Autumn dashboard use Better Auth session-based authentication instead of API keys. These requests include the `x-client-type: dashboard` header.
+
+## Environment-Based Keys
+
+Autumn automatically determines the environment (sandbox or live) based on your API key:
+
+- Keys starting with `am_sk_test_` or `am_pk_test_` → **Sandbox environment**
+- Keys starting with `am_sk_live_` or `am_pk_live_` → **Live environment**
+
+This ensures complete data separation between test and production environments.
+
+## Authentication Errors
+
+Common authentication errors you may encounter:
+
+| Error Code | Status | Description |
+|------------|--------|-------------|
+| `no_secret_key` | 401 | No Authorization header provided |
+| `invalid_secret_key` | 401 | API key is invalid or malformed |
+| `invalid_auth_header` | 401 | Authorization header format is incorrect |
+| `no_publishable_key` | 401 | Publishable key missing |
+| `invalid_publishable_key` | 401 | Publishable key is invalid |
+| `endpoint_not_public` | 401 | Endpoint not accessible with publishable key |
+| `failed_to_verify_secret_key` | 401 | Could not verify the secret key |
+| `failed_to_verify_publishable_key` | 401 | Could not verify the publishable key |
+
+### Example Authentication Error
+
+```json
+{
+  "message": "Secret key not found in Authorization header",
+  "code": "no_secret_key",
+  "env": "sandbox"
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep Secret Keys Secure">
+    - Never commit secret keys to version control
+    - Store keys in environment variables
+    - Use different keys for different environments
+    - Rotate keys regularly
+    - Never expose keys in client-side code or public repositories
+  </Accordion>
+
+  <Accordion title="Use Appropriate Key Types">
+    - Use **secret keys** for server-side operations
+    - Use **publishable keys** for client-side, read-only operations
+    - Use **test keys** during development and testing
+    - Use **live keys** only in production
+  </Accordion>
+
+  <Accordion title="Handle Authentication Errors">
+    - Implement proper error handling for 401 responses
+    - Log authentication failures for security monitoring
+    - Don't expose detailed authentication errors to end users
+    - Implement retry logic with exponential backoff
+  </Accordion>
+</AccordionGroup>
+
+## Managing API Keys
+
+You can create and manage your API keys through the Autumn dashboard. Each organization can have multiple API keys for different purposes and environments.
+
+<Tip>
+For enhanced security, create separate API keys for different services or environments, and revoke keys immediately if they're compromised.
+</Tip>

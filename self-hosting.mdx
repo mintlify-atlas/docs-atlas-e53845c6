@@ -1,0 +1,473 @@
+---
+title: Self-Hosting
+description: Deploy Autumn on your own infrastructure with Docker
+---
+
+## Overview
+
+Autumn is fully open-source and can be self-hosted on your own infrastructure. This guide will walk you through setting up Autumn using Docker Compose.
+
+## Prerequisites
+
+Before you begin, make sure you have the following installed:
+
+- [Bun](https://bun.sh) - JavaScript runtime and package manager
+- [Docker](https://www.docker.com/) - Container runtime
+- [PostgreSQL](https://www.postgresql.org/) - Database (or use Supabase)
+- [Stripe Account](https://stripe.com) - For payment processing
+
+## Architecture
+
+The self-hosted Autumn setup includes:
+
+- **Vite Frontend** - React dashboard on port 3000
+- **Server** - Hono API server on port 8080
+- **Workers** - BullMQ background job processors
+- **Valkey** - Redis-compatible cache on port 6379
+- **LocalTunnel** - Webhook endpoint for Stripe (development only)
+
+## Installation
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/useautumn/autumn.git
+    cd autumn
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    ```bash
+    bun install
+    ```
+  </Step>
+
+  <Step title="Run the setup script">
+    The setup script will guide you through configuration:
+
+    ```bash
+    bun setup
+    ```
+
+    This will:
+    - Generate encryption keys for secure data storage
+    - Set up Stripe webhook endpoints
+    - Optionally create a Supabase database instance
+    - Create the `server/.env` file with all required variables
+  </Step>
+
+  <Step title="Generate database schema">
+    Create the database tables:
+
+    ```bash
+    bun db:generate && bun db:migrate
+    ```
+  </Step>
+</Steps>
+
+## Environment Configuration
+
+The setup script creates a `server/.env` file. Here are the key environment variables:
+
+### Required Variables
+
+<CodeGroup>
+```bash Authentication
+# Auth configuration
+BETTER_AUTH_SECRET=your-secret-key
+BETTER_AUTH_URL=http://localhost:8080
+CLIENT_URL=http://localhost:3000
+```
+
+```bash Stripe
+# Stripe configuration (auto-filled by setup script)
+ENCRYPTION_IV=auto-generated
+ENCRYPTION_PASSWORD=auto-generated
+STRIPE_WEBHOOK_URL=auto-generated
+LOCALTUNNEL_RESERVED_KEY=auto-generated
+```
+
+```bash Database
+# PostgreSQL connection string
+DATABASE_URL=postgresql://user:password@host:port/database
+```
+</CodeGroup>
+
+### Optional Variables
+
+<CodeGroup>
+```bash OAuth
+# Google OAuth (optional)
+# Get from https://console.cloud.google.com/apis/credentials
+GOOGLE_CLIENT_ID=your-client-id
+GOOGLE_CLIENT_SECRET=your-client-secret
+```
+
+```bash Redis
+# Redis configuration
+# Use local Redis or hosted (Upstash recommended)
+REDIS_URL=redis://localhost:6379
+```
+
+```bash Email
+# Resend for transactional emails (optional)
+# Sign up at https://resend.com
+RESEND_API_KEY=your-api-key
+RESEND_DOMAIN=your-domain.com
+```
+
+```bash Supabase
+# Supabase credentials (if using Supabase)
+# Settings → Configuration: Data API → Project URL
+# Settings → Project Settings: API Keys → service_role
+SUPABASE_URL=your-project-url
+SUPABASE_SERVICE_KEY=your-service-key
+```
+
+```bash Monitoring
+# Axiom for logs and OpenTelemetry (optional)
+# Sign up at https://axiom.co
+AXIOM_TOKEN=your-axiom-token
+```
+
+```bash Webhooks
+# Svix for webhook delivery (optional)
+# Sign up at https://www.svix.com
+SVIX_API_KEY=your-svix-api-key
+```
+
+```bash AI
+# Anthropic for feature name generation (optional)
+ANTHROPIC_API_KEY=your-api-key
+```
+</CodeGroup>
+
+<Note>
+  If you're using your own Postgres instance instead of Supabase, simply paste your connection string in `DATABASE_URL` and leave the Supabase variables empty.
+</Note>
+
+## Running with Docker Compose
+
+Autumn includes Docker Compose configurations for different platforms:
+
+<Steps>
+  <Step title="Start the services">
+    <CodeGroup>
+    ```bash Windows
+    docker compose -f docker-compose.dev.yml up
+    ```
+
+    ```bash macOS/Linux
+    docker compose -f docker-compose.unix.yml up
+    ```
+    </CodeGroup>
+
+    Add the `-d` flag to run in detached mode:
+    ```bash
+    docker compose -f docker-compose.unix.yml up -d
+    ```
+  </Step>
+
+  <Step title="Verify services are running">
+    Check that all services are healthy:
+
+    ```bash
+    docker compose ps
+    ```
+
+    You should see:
+    - `vite` - Frontend (port 3000)
+    - `server` - API server (port 8080)
+    - `workers` - Background jobs
+    - `valkey` - Redis cache (port 6379)
+    - `shared` - Shared packages
+    - `localtunnel` - Webhook tunnel
+  </Step>
+
+  <Step title="Access the dashboard">
+    Open your browser and navigate to:
+
+    ```
+    http://localhost:3000
+    ```
+  </Step>
+</Steps>
+
+## Docker Services Explained
+
+### Valkey (Redis)
+
+Provides caching and job queue storage:
+
+```yaml
+valkey:
+  image: docker.io/valkey/valkey:8.0
+  ports:
+    - "6379:6379"
+  volumes:
+    - valkey-data:/valkey/valkey/data
+```
+
+### Vite Frontend
+
+React-based dashboard application:
+
+```yaml
+vite:
+  build:
+    dockerfile: docker/dev.dockerfile
+    target: vite
+  ports:
+    - "3000:3000"
+  environment:
+    - NODE_ENV=development
+```
+
+### Server
+
+Hono-based API server:
+
+```yaml
+server:
+  build:
+    dockerfile: docker/dev.dockerfile
+    target: server
+  ports:
+    - "8080:8080"
+  environment:
+    - NODE_ENV=development
+    - REDIS_URL=redis://valkey:6379
+```
+
+### Workers
+
+BullMQ background job processors:
+
+```yaml
+workers:
+  build:
+    dockerfile: docker/dev.dockerfile
+    target: workers
+  environment:
+    - REDIS_URL=redis://valkey:6379
+```
+
+## Authentication Setup
+
+### Development Mode
+
+In development, Autumn uses console-based OTP authentication:
+
+1. Navigate to `http://localhost:3000`
+2. Enter your email address
+3. Check your terminal/console for the OTP code
+4. Enter the OTP to sign in
+
+<Note>
+  The OTP will appear in the logs of the `server` container. If running in detached mode, use `docker compose logs server -f` to view logs.
+</Note>
+
+### Production Mode
+
+For production deployments, configure one or both of:
+
+**Email OTP with Resend:**
+
+```bash
+RESEND_API_KEY=re_your_api_key
+RESEND_DOMAIN=yourdomain.com
+```
+
+**Google OAuth:**
+
+```bash
+GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=your-client-secret
+```
+
+## Database Configuration
+
+### Using Supabase (Recommended)
+
+The setup script can automatically provision a Supabase database:
+
+1. Run `bun setup`
+2. Choose to create a Supabase instance
+3. The script will configure `DATABASE_URL`, `SUPABASE_URL`, and `SUPABASE_SERVICE_KEY`
+
+### Using Your Own PostgreSQL
+
+To use your own Postgres instance:
+
+1. Create a database for Autumn
+2. Update `server/.env`:
+   ```bash
+   DATABASE_URL=postgresql://user:password@host:port/autumn
+   ```
+3. Run migrations:
+   ```bash
+   bun db:generate && bun db:migrate
+   ```
+
+## Stripe Configuration
+
+Autumn requires a Stripe account for payment processing:
+
+<Steps>
+  <Step title="Create a Stripe account">
+    Sign up at [stripe.com](https://stripe.com) if you haven't already.
+  </Step>
+
+  <Step title="Get your API keys">
+    Navigate to Developers → API keys in your Stripe dashboard and copy your secret key.
+  </Step>
+
+  <Step title="Configure in Autumn">
+    Add your Stripe keys in the Autumn dashboard under Settings → Integrations → Stripe.
+  </Step>
+
+  <Step title="Set up webhooks">
+    The setup script automatically configures webhook endpoints using LocalTunnel for development.
+
+    For production, configure your webhook endpoint:
+    ```
+    https://yourdomain.com/api/webhooks/stripe
+    ```
+
+    Subscribe to these events:
+    - `customer.subscription.created`
+    - `customer.subscription.updated`
+    - `customer.subscription.deleted`
+    - `invoice.payment_succeeded`
+    - `invoice.payment_failed`
+    - `checkout.session.completed`
+  </Step>
+</Steps>
+
+## Stopping Services
+
+To stop all running containers:
+
+```bash
+docker compose down
+```
+
+To stop and remove volumes (clears data):
+
+```bash
+docker compose down -v
+```
+
+## Production Deployment
+
+For production deployments:
+
+<Warning>
+  Do not use LocalTunnel in production. Configure a proper domain with SSL/TLS certificates.
+</Warning>
+
+1. **Set production environment variables**
+   - Update `BETTER_AUTH_URL` and `CLIENT_URL` to your production domain
+   - Configure real email service (Resend) or OAuth
+   - Use a production Postgres instance
+   - Set up Redis with persistence
+
+2. **Use a production Docker Compose file**
+   ```yaml
+   services:
+     vite:
+       build:
+         target: production
+       environment:
+         - NODE_ENV=production
+   ```
+
+3. **Configure reverse proxy**
+   Use nginx or Caddy to handle SSL and route traffic:
+   - Frontend → port 3000
+   - API → port 8080
+
+4. **Set up monitoring**
+   Configure Axiom or your preferred logging solution:
+   ```bash
+   AXIOM_TOKEN=your-production-token
+   ```
+
+## Troubleshooting
+
+### Database Migration Errors
+
+If you encounter `SyntaxError: Unexpected end of JSON input`:
+
+1. Connect to your database
+2. Drop all tables
+3. Run migrations again:
+   ```bash
+   bun db:generate && bun db:migrate
+   ```
+
+### Service Not Starting
+
+Check container logs:
+
+```bash
+# View logs for a specific service
+docker compose logs server -f
+
+# View logs for all services
+docker compose logs -f
+```
+
+### Port Conflicts
+
+If ports 3000, 8080, or 6379 are already in use, update the port mappings in your `docker-compose.yml` file:
+
+```yaml
+ports:
+  - "3001:3000"  # Map to a different host port
+```
+
+### Redis Connection Issues
+
+Verify Valkey is running:
+
+```bash
+docker compose ps valkey
+```
+
+Test Redis connection:
+
+```bash
+docker compose exec valkey redis-cli ping
+# Should return: PONG
+```
+
+## Updating Autumn
+
+To update to the latest version:
+
+```bash
+git pull origin main
+bun install
+bun db:generate && bun db:migrate
+docker compose down
+docker compose build
+docker compose up
+```
+
+## Getting Help
+
+<CardGroup cols={2}>
+  <Card title="Discord Community" icon="discord" href="https://discord.gg/53emPtY9tA">
+    Join our community for real-time support
+  </Card>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/useautumn/autumn/issues">
+    Report bugs or request features
+  </Card>
+  <Card title="Email Support" icon="envelope" href="mailto:hey@useautumn.com">
+    Reach out to the team directly
+  </Card>
+  <Card title="Contributing Guide" icon="code" href="https://github.com/useautumn/autumn/blob/main/.github/CONTRIBUTING.md">
+    Learn how to contribute to Autumn
+  </Card>
+</CardGroup>

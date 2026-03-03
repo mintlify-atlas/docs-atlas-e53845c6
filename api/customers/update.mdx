@@ -1,0 +1,244 @@
+---
+title: 'Update Customer'
+openapi: 'POST /v1/customers.update'
+---
+
+Updates an existing customer's information by ID.
+
+<Note>
+  This endpoint can also be called using `PATCH /v1/customers/{customer_id}` for REST-style updates.
+</Note>
+
+## Request Body
+
+<ParamField body="customer_id" type="string" required>
+  ID of the customer to update.
+</ParamField>
+
+<ParamField body="name" type="string">
+  Customer's name. Pass `null` to clear the value.
+</ParamField>
+
+<ParamField body="email" type="string">
+  Customer's email address. Must be a valid email format. Pass `null` to clear the value.
+</ParamField>
+
+<ParamField body="fingerprint" type="string">
+  Unique identifier (eg. serial number, device ID) to detect duplicate customers. Pass `null` to clear the value.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Additional metadata for the customer. Pass `null` to clear all metadata, or provide an object to merge with existing metadata.
+</ParamField>
+
+<ParamField body="stripe_id" type="string">
+  Stripe customer ID. Use this to link the customer to an existing Stripe customer. Pass `null` to clear the value.
+</ParamField>
+
+<ParamField body="send_email_receipts" type="boolean">
+  Whether to send email receipts to this customer.
+</ParamField>
+
+<ParamField body="new_customer_id" type="string">
+  New ID for the customer if you want to change their identifier. The new ID must follow the same validation rules as the original ID (no `@`, spaces, or periods).
+</ParamField>
+
+## Response
+
+Returns the updated Customer object with the following fields:
+
+<ResponseField name="id" type="string">
+  Your unique identifier for the customer (or the new ID if `new_customer_id` was provided).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The updated name of the customer.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  The updated email address of the customer.
+</ResponseField>
+
+<ResponseField name="created_at" type="number">
+  Timestamp of customer creation in milliseconds since epoch (unchanged).
+</ResponseField>
+
+<ResponseField name="fingerprint" type="string">
+  The updated fingerprint identifier for the customer.
+</ResponseField>
+
+<ResponseField name="stripe_id" type="string">
+  Updated Stripe customer ID.
+</ResponseField>
+
+<ResponseField name="env" type="string">
+  The environment this customer was created in (`sandbox` or `live`).
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+  The updated metadata for the customer.
+</ResponseField>
+
+<ResponseField name="send_email_receipts" type="boolean">
+  Whether email receipts are enabled for this customer.
+</ResponseField>
+
+<ResponseField name="subscriptions" type="array">
+  Active and scheduled recurring plans (unchanged by this operation).
+</ResponseField>
+
+<ResponseField name="purchases" type="array">
+  One-time purchases (unchanged by this operation).
+</ResponseField>
+
+<ResponseField name="balances" type="object">
+  Feature balances (unchanged by this operation).
+</ResponseField>
+
+## Example Requests
+
+<CodeGroup>
+
+```typescript Update Basic Info
+const customer = await autumn.customers.update({
+  customer_id: "cus_123",
+  name: "Jane Doe",
+  email: "jane.doe@example.com"
+});
+```
+
+```typescript Update Metadata
+const customer = await autumn.customers.update({
+  customer_id: "cus_123",
+  metadata: {
+    company: "New Company Inc",
+    department: "Engineering",
+    custom_field: "value"
+  }
+});
+```
+
+```typescript Change Customer ID
+const customer = await autumn.customers.update({
+  customer_id: "cus_123",
+  new_customer_id: "cus_new_id_456"
+});
+```
+
+```typescript Enable Email Receipts
+const customer = await autumn.customers.update({
+  customer_id: "cus_123",
+  send_email_receipts: true
+});
+```
+
+```python Python SDK
+customer = autumn.customers.update(
+    customer_id="cus_123",
+    name="Jane Doe",
+    email="jane.doe@example.com",
+    metadata={
+        "company": "New Company Inc"
+    }
+)
+```
+
+```bash cURL
+curl -X POST https://api.useautumn.com/v1/customers.update \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "x-api-version: 2.1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "cus_123",
+    "name": "Jane Doe",
+    "email": "jane.doe@example.com",
+    "metadata": {
+      "company": "New Company Inc"
+    }
+  }'
+```
+
+```bash cURL (REST style)
+curl -X PATCH https://api.useautumn.com/v1/customers/cus_123 \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "x-api-version: 2.1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Jane Doe",
+    "email": "jane.doe@example.com"
+  }'
+```
+
+</CodeGroup>
+
+## Example Response
+
+```json
+{
+  "id": "cus_123",
+  "name": "Jane Doe",
+  "email": "jane.doe@example.com",
+  "created_at": 1771409161016,
+  "fingerprint": null,
+  "stripe_id": "cus_U0BKxpq1mFhuJO",
+  "env": "sandbox",
+  "metadata": {
+    "company": "New Company Inc",
+    "department": "Engineering"
+  },
+  "send_email_receipts": false,
+  "subscriptions": [
+    {
+      "plan_id": "pro_plan",
+      "auto_enable": true,
+      "add_on": false,
+      "status": "active",
+      "past_due": false,
+      "canceled_at": null,
+      "expires_at": null,
+      "trial_ends_at": null,
+      "started_at": 1771431921437,
+      "current_period_start": 1771431921437,
+      "current_period_end": 1771999921437,
+      "quantity": 1
+    }
+  ],
+  "purchases": [],
+  "balances": {
+    "messages": {
+      "feature_id": "messages",
+      "granted": 100,
+      "remaining": 50,
+      "usage": 50,
+      "unlimited": false,
+      "overage_allowed": false,
+      "max_purchase": null,
+      "next_reset_at": 1773851121437,
+      "breakdown": [
+        {
+          "id": "cus_ent_39qmLooixXLAqMywgXywjAz96rV",
+          "plan_id": "pro_plan",
+          "included_grant": 100,
+          "prepaid_grant": 0,
+          "remaining": 50,
+          "usage": 50,
+          "unlimited": false,
+          "reset": {
+            "interval": "month",
+            "resets_at": 1773851121437
+          },
+          "price": null,
+          "expires_at": null
+        }
+      ]
+    }
+  }
+}
+```
+
+## Notes
+
+- Only the fields you provide in the request will be updated. Other fields remain unchanged.
+- To clear a nullable field, explicitly pass `null` as the value.
+- When updating metadata, the provided object is merged with existing metadata. To completely replace metadata, pass the complete new object.
+- Changing the customer ID with `new_customer_id` will update the ID across all related records (subscriptions, balances, etc.).

@@ -1,0 +1,245 @@
+---
+title: 'Create or Get Customer'
+openapi: 'POST /v1/customers.get_or_create'
+---
+
+Creates a customer if they do not exist, or returns the existing customer by your external customer ID.
+
+## When to Use
+
+Use this as the primary entrypoint before billing operations so the customer record is always present and up to date. This endpoint is idempotent - calling it multiple times with the same `customer_id` will return the same customer without creating duplicates.
+
+## Request Body
+
+<ParamField body="customer_id" type="string" required>
+  Your unique identifier for the customer. Cannot contain `@`, spaces, or periods. Only letters, numbers, underscores, and hyphens are allowed.
+</ParamField>
+
+<ParamField body="name" type="string">
+  Customer's name.
+</ParamField>
+
+<ParamField body="email" type="string">
+  Customer's email address. Must be a valid email format.
+</ParamField>
+
+<ParamField body="fingerprint" type="string">
+  Unique identifier (eg. serial number, device ID) to detect duplicate customers and prevent free trial abuse. Useful for identifying the same user across different accounts or devices.
+</ParamField>
+
+<ParamField body="metadata" type="object">
+  Additional metadata for the customer. Can store any custom key-value pairs.
+</ParamField>
+
+<ParamField body="stripe_id" type="string">
+  Stripe customer ID if you already have one. If provided, Autumn will link to your existing Stripe customer.
+</ParamField>
+
+<ParamField body="create_in_stripe" type="boolean">
+  Whether to create the customer in Stripe. Defaults to `true` if not specified.
+</ParamField>
+
+<ParamField body="auto_enable_plan_id" type="string">
+  The ID of a free plan to automatically enable for the customer upon creation.
+</ParamField>
+
+<ParamField body="send_email_receipts" type="boolean">
+  Whether to send email receipts to this customer. Defaults to `false`.
+</ParamField>
+
+<ParamField body="expand" type="array">
+  Array of fields to expand in the response. Available options:
+  - `invoices` - Include customer invoices
+  - `trials_used` - Include trial usage information
+  - `rewards` - Include rewards information
+  - `entities` - Include entity information
+  - `referrals` - Include referral information
+  - `payment_method` - Include payment method details
+  - `subscriptions.plan` - Expand full plan objects in subscriptions
+  - `purchases.plan` - Expand full plan objects in purchases
+  - `balances.feature` - Expand full feature objects in balances
+</ParamField>
+
+## Response
+
+Returns a Customer object with the following fields:
+
+<ResponseField name="id" type="string">
+  Your unique identifier for the customer.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The name of the customer.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  The email address of the customer.
+</ResponseField>
+
+<ResponseField name="created_at" type="number">
+  Timestamp of customer creation in milliseconds since epoch.
+</ResponseField>
+
+<ResponseField name="fingerprint" type="string">
+  The fingerprint identifier for the customer.
+</ResponseField>
+
+<ResponseField name="stripe_id" type="string">
+  Stripe customer ID.
+</ResponseField>
+
+<ResponseField name="env" type="string">
+  The environment this customer was created in (`sandbox` or `live`).
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+  The metadata for the customer.
+</ResponseField>
+
+<ResponseField name="send_email_receipts" type="boolean">
+  Whether email receipts are enabled for this customer.
+</ResponseField>
+
+<ResponseField name="subscriptions" type="array">
+  Active and scheduled recurring plans that this customer has attached. Each subscription includes:
+  - `plan_id` - The unique identifier of the subscribed plan
+  - `status` - Current status (`active` or `scheduled`)
+  - `auto_enable` - Whether the plan was automatically enabled
+  - `add_on` - Whether this is an add-on plan
+  - `past_due` - Whether the subscription has overdue payments
+  - `started_at` - Timestamp when subscription started
+  - `current_period_start` - Start of current billing period
+  - `current_period_end` - End of current billing period
+  - `quantity` - Quantity of the subscription
+  - `canceled_at` - Timestamp when canceled (if applicable)
+  - `expires_at` - Timestamp when it expires (if applicable)
+  - `trial_ends_at` - Timestamp when trial ends (if applicable)
+</ResponseField>
+
+<ResponseField name="purchases" type="array">
+  One-time purchases made by the customer.
+</ResponseField>
+
+<ResponseField name="balances" type="object">
+  Feature balances keyed by feature ID, showing usage limits and remaining amounts. Each balance includes:
+  - `feature_id` - The feature identifier
+  - `granted` - Total amount granted
+  - `remaining` - Amount remaining
+  - `usage` - Total usage
+  - `unlimited` - Whether the feature is unlimited
+  - `overage_allowed` - Whether overage is allowed
+  - `max_purchase` - Maximum purchasable amount
+  - `next_reset_at` - Timestamp of next reset
+  - `breakdown` - Detailed breakdown by entitlement
+</ResponseField>
+
+## Example Request
+
+<CodeGroup>
+
+```typescript TypeScript SDK
+const customer = await autumn.customers.getOrCreate({
+  customer_id: "cus_123",
+  name: "John Doe",
+  email: "john@example.com",
+  metadata: {
+    company: "Acme Inc",
+    plan_preference: "pro"
+  }
+});
+```
+
+```python Python SDK
+customer = autumn.customers.get_or_create(
+    customer_id="cus_123",
+    name="John Doe",
+    email="john@example.com",
+    metadata={
+        "company": "Acme Inc",
+        "plan_preference": "pro"
+    }
+)
+```
+
+```bash cURL
+curl -X POST https://api.useautumn.com/v1/customers.get_or_create \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "x-api-version: 2.1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "cus_123",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "metadata": {
+      "company": "Acme Inc",
+      "plan_preference": "pro"
+    }
+  }'
+```
+
+</CodeGroup>
+
+## Example Response
+
+```json
+{
+  "id": "cus_123",
+  "name": "John Doe",
+  "email": "john@example.com",
+  "created_at": 1771409161016,
+  "fingerprint": null,
+  "stripe_id": "cus_U0BKxpq1mFhuJO",
+  "env": "sandbox",
+  "metadata": {
+    "company": "Acme Inc",
+    "plan_preference": "pro"
+  },
+  "send_email_receipts": false,
+  "subscriptions": [
+    {
+      "plan_id": "pro_plan",
+      "auto_enable": true,
+      "add_on": false,
+      "status": "active",
+      "past_due": false,
+      "canceled_at": null,
+      "expires_at": null,
+      "trial_ends_at": null,
+      "started_at": 1771431921437,
+      "current_period_start": 1771431921437,
+      "current_period_end": 1771999921437,
+      "quantity": 1
+    }
+  ],
+  "purchases": [],
+  "balances": {
+    "messages": {
+      "feature_id": "messages",
+      "granted": 100,
+      "remaining": 50,
+      "usage": 50,
+      "unlimited": false,
+      "overage_allowed": false,
+      "max_purchase": null,
+      "next_reset_at": 1773851121437,
+      "breakdown": [
+        {
+          "id": "cus_ent_39qmLooixXLAqMywgXywjAz96rV",
+          "plan_id": "pro_plan",
+          "included_grant": 100,
+          "prepaid_grant": 0,
+          "remaining": 50,
+          "usage": 50,
+          "unlimited": false,
+          "reset": {
+            "interval": "month",
+            "resets_at": 1773851121437
+          },
+          "price": null,
+          "expires_at": null
+        }
+      ]
+    }
+  }
+}
+```

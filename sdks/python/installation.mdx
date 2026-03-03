@@ -1,0 +1,285 @@
+---
+title: "Installation"
+description: "Install and configure the Autumn Python SDK"
+---
+
+## Requirements
+
+The Autumn Python SDK requires Python 3.10 or higher.
+
+## Installation
+
+You can install the Autumn Python SDK using your preferred Python package manager:
+
+<CodeGroup>
+```bash pip
+pip install autumn-sdk
+```
+
+```bash uv
+uv add autumn-sdk
+```
+
+```bash poetry
+poetry add autumn-sdk
+```
+</CodeGroup>
+
+<Note>
+The SDK uses modern Python tooling and is optimized for use with [uv](https://docs.astral.sh/uv/), a fast Python package installer and resolver.
+</Note>
+
+## Getting Your API Key
+
+1. Log in to your Autumn dashboard
+2. Navigate to Settings > API Keys
+3. Create a new secret key or copy an existing one
+4. Store it securely (we recommend using environment variables)
+
+<Warning>
+Never commit your secret key to version control. Always use environment variables or a secure secret management system.
+</Warning>
+
+## Basic Setup
+
+Create a new Python file and initialize the SDK:
+
+```python
+from autumn_sdk import Autumn
+import os
+
+# Initialize the SDK with your secret key
+client = Autumn(
+    secret_key=os.getenv("AUTUMN_SECRET_KEY"),
+    x_api_version="2.1"  # Optional: specify API version
+)
+```
+
+## Environment Variables
+
+Create a `.env` file in your project root:
+
+```bash .env
+AUTUMN_SECRET_KEY=sk_live_...
+```
+
+Then load it in your application:
+
+```python
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+client = Autumn(secret_key=os.getenv("AUTUMN_SECRET_KEY"))
+```
+
+## Configuration Options
+
+The SDK supports several configuration options:
+
+```python
+from autumn_sdk import Autumn
+from autumn_sdk.utils import RetryConfig, BackoffStrategy
+import httpx
+
+client = Autumn(
+    # Required
+    secret_key="sk_live_...",
+    
+    # Optional configuration
+    x_api_version="2.1",              # API version (defaults to latest)
+    server_url="https://api.useautumn.com",  # Custom server URL
+    timeout_ms=30000,                  # Request timeout in milliseconds
+    
+    # Custom retry configuration
+    retry_config=RetryConfig(
+        strategy="backoff",
+        backoff=BackoffStrategy(1, 50, 1.1, 100),
+        retry_connection_errors=False
+    ),
+    
+    # Custom HTTP client
+    client=httpx.Client(headers={"x-custom-header": "value"})
+)
+```
+
+### Configuration Parameters
+
+<ParamField path="secret_key" type="string" required>
+  Your Autumn API secret key. You can also pass a callable that returns the key for dynamic authentication.
+</ParamField>
+
+<ParamField path="x_api_version" type="string">
+  API version to use. Defaults to the latest stable version (2.1).
+</ParamField>
+
+<ParamField path="server_url" type="string">
+  Override the default API server URL. Useful for testing or using a proxy.
+</ParamField>
+
+<ParamField path="timeout_ms" type="int">
+  Request timeout in milliseconds. Applied to all operations unless overridden per-request.
+</ParamField>
+
+<ParamField path="retry_config" type="RetryConfig">
+  Custom retry configuration for failed requests. See [Retries](#retry-configuration) below.
+</ParamField>
+
+<ParamField path="client" type="HttpClient">
+  Custom httpx client instance for synchronous operations.
+</ParamField>
+
+<ParamField path="async_client" type="AsyncHttpClient">
+  Custom httpx async client instance for asynchronous operations.
+</ParamField>
+
+## Retry Configuration
+
+The SDK automatically retries failed requests with exponential backoff. You can customize this behavior:
+
+```python
+from autumn_sdk import Autumn
+from autumn_sdk.utils import RetryConfig, BackoffStrategy
+
+# Global retry configuration
+client = Autumn(
+    secret_key="sk_live_...",
+    retry_config=RetryConfig(
+        strategy="backoff",
+        backoff=BackoffStrategy(
+            initial_interval=1,      # Start with 1 second
+            max_interval=50,         # Cap at 50 seconds
+            exponent=1.1,            # Increase by 10% each retry
+            max_elapsed_time=100     # Give up after 100 seconds
+        ),
+        retry_connection_errors=False
+    )
+)
+
+# Per-operation retry override
+from autumn_sdk.utils import RetryConfig, BackoffStrategy
+
+res = client.check(
+    customer_id="cus_123",
+    feature_id="messages",
+    retries=RetryConfig("backoff", BackoffStrategy(1, 30, 1.5, 60), False)
+)
+```
+
+## Resource Management
+
+The SDK implements proper resource management using Python context managers:
+
+```python
+from autumn_sdk import Autumn
+
+# Synchronous context manager
+with Autumn(secret_key=os.getenv("AUTUMN_SECRET_KEY")) as client:
+    customer = client.customers.get_or_create(customer_id="cus_123")
+    # HTTP connections are automatically closed on exit
+
+# Async context manager
+import asyncio
+
+async def main():
+    async with Autumn(secret_key=os.getenv("AUTUMN_SECRET_KEY")) as client:
+        customer = await client.customers.get_or_create_async(customer_id="cus_123")
+        # Async HTTP connections are automatically closed on exit
+
+asyncio.run(main())
+```
+
+<Tip>
+Always use context managers (`with` statement) to ensure proper cleanup of HTTP connections, especially in long-running applications.
+</Tip>
+
+## IDE Support
+
+The SDK includes full type hints and works great with modern IDEs:
+
+### PyCharm
+
+For enhanced Pydantic integration in PyCharm, install the Pydantic plugin:
+
+- [PyCharm Pydantic Plugin](https://docs.pydantic.dev/latest/integrations/pycharm/)
+
+### VS Code
+
+VS Code provides excellent autocomplete and type checking out of the box. For the best experience:
+
+1. Install the Python extension
+2. Enable type checking in your `settings.json`:
+
+```json
+{
+  "python.analysis.typeCheckingMode": "basic"
+}
+```
+
+## Testing Your Installation
+
+Verify your installation with this simple test:
+
+```python test.py
+from autumn_sdk import Autumn
+import os
+
+def test_installation():
+    client = Autumn(secret_key=os.getenv("AUTUMN_SECRET_KEY"))
+    
+    # Try to get or create a test customer
+    try:
+        customer = client.customers.get_or_create(
+            customer_id="test_customer",
+            name="Test User",
+            email="test@example.com"
+        )
+        print(f"Success! Created customer: {customer.id}")
+        return True
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+
+if __name__ == "__main__":
+    test_installation()
+```
+
+Run the test:
+
+```bash
+python test.py
+```
+
+## Debugging
+
+Enable debug logging to troubleshoot issues:
+
+```python
+import logging
+from autumn_sdk import Autumn
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("autumn_sdk")
+
+# Pass logger to SDK
+client = Autumn(
+    secret_key="sk_live_...",
+    debug_logger=logger
+)
+
+# All requests and responses will be logged
+res = client.check(customer_id="cus_123", feature_id="messages")
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Usage Guide" icon="code" href="/sdks/python/usage">
+    Learn how to use the SDK for common billing and usage tracking tasks
+  </Card>
+  <Card title="API Reference" icon="book" href="/api/overview">
+    Explore the complete API reference
+  </Card>
+</CardGroup>

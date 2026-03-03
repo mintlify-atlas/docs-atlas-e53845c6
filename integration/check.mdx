@@ -1,0 +1,463 @@
+---
+title: 'Check Endpoint'
+description: 'Verify customer access to features and check remaining balances in real-time'
+---
+
+## Overview
+
+The `/check` endpoint verifies whether a customer has access to a specific feature or product. Use it to:
+
+- Gate features behind paywalls
+- Display remaining usage limits
+- Show upgrade prompts when limits are reached
+- Combine check + track in a single atomic operation
+
+## Quick Start
+
+<CodeGroup>
+
+```tsx React Frontend
+import { useCustomer } from '@useautumn/autumn-js/react';
+
+function FeatureButton() {
+  const { check } = useCustomer();
+
+  const handleClick = () => {
+    const result = check({ featureId: "ai_tokens" });
+    
+    if (!result.allowed) {
+      alert(`AI limit reached. ${result.balance?.remaining || 0} tokens left.`);
+      return;
+    }
+    
+    // Proceed with feature
+    generateAIContent();
+  };
+
+  return <button onClick={handleClick}>Generate AI Content</button>;
+}
+```
+
+```typescript Backend (Node.js)
+import { Autumn } from '@useautumn/sdk';
+
+const autumn = new Autumn({ 
+  secretKey: process.env.AUTUMN_SECRET_KEY 
+});
+
+const result = await autumn.balances.check({
+  customerId: "cus_123",
+  featureId: "ai_tokens",
+  requiredBalance: 100  // Need 100 tokens
+});
+
+if (!result.allowed) {
+  return res.status(403).json({ 
+    error: "Insufficient AI tokens",
+    remaining: result.balance?.remaining 
+  });
+}
+
+// Process the AI request
+await generateAIContent();
+```
+
+```python Python
+from autumn import Autumn
+
+autumn = Autumn(secret_key=os.environ["AUTUMN_SECRET_KEY"])
+
+result = autumn.balances.check(
+    customer_id="cus_123",
+    feature_id="ai_tokens",
+    required_balance=100
+)
+
+if not result.allowed:
+    return {"error": "Insufficient AI tokens"}, 403
+
+# Process the AI request
+generate_ai_content()
+```
+
+</CodeGroup>
+
+## Parameters
+
+<ParamField path="customerId" type="string" required>
+  The ID of the customer to check access for.
+</ParamField>
+
+<ParamField path="featureId" type="string">
+  The ID of the feature to check. Use either `featureId` or `productId`.
+</ParamField>
+
+<ParamField path="productId" type="string">
+  The ID of the product to check. Use either `featureId` or `productId`.
+</ParamField>
+
+<ParamField path="entityId" type="string">
+  The ID of the entity for entity-scoped checks (e.g., per-seat limits).
+</ParamField>
+
+<ParamField path="requiredBalance" type="number" default="1">
+  Minimum balance required for access. Returns `allowed: false` if the customer's balance is below this value.
+  
+  ```typescript
+  // Check if customer has at least 500 tokens
+  check({ featureId: "api_calls", requiredBalance: 500 })
+  ```
+</ParamField>
+
+<ParamField path="sendEvent" type="boolean" default="false">
+  If true, atomically records a usage event while checking access. Combines check + track in one call.
+  
+  ```typescript
+  // Check AND consume 100 tokens in one atomic operation
+  check({ 
+    featureId: "ai_tokens", 
+    requiredBalance: 100,
+    sendEvent: true  // Deducts 100 tokens if allowed
+  })
+  ```
+</ParamField>
+
+<ParamField path="withPreview" type="boolean" default="false">
+  If true, includes upgrade/upsell information when access is denied. Useful for displaying paywalls.
+  
+  ```typescript
+  const result = check({ 
+    featureId: "advanced_analytics", 
+    withPreview: true 
+  });
+  
+  if (!result.allowed && result.preview) {
+    // Show upgrade modal with result.preview.products
+  }
+  ```
+</ParamField>
+
+<ParamField path="properties" type="object">
+  Additional properties to attach to the usage event (only used if `sendEvent: true`).
+</ParamField>
+
+## Response
+
+```typescript
+interface CheckResponse {
+  allowed: boolean;              // Whether customer has access
+  customerId: string;            // The customer ID
+  entityId?: string;             // The entity ID (if entity-scoped)
+  requiredBalance?: number;      // The required balance checked
+  balance: Balance | null;       // Customer's balance details
+  preview?: {                    // Upgrade info (if withPreview: true and !allowed)
+    scenario: "usage_limit" | "feature_flag";
+    title: string;
+    message: string;
+    featureId: string;
+    featureName: string;
+    products: Product[];         // Products that grant access
+  };
+}
+
+interface Balance {
+  featureId: string;
+  granted: number;               // Total balance granted
+  remaining: number;             // Balance remaining
+  usage: number;                 // Current usage
+  unlimited: boolean;            // Whether feature is unlimited
+  overageAllowed: boolean;       // Whether overage is allowed
+  nextResetAt: number | null;    // Timestamp of next reset
+  breakdown?: BalanceBreakdown[];  // Detailed balance sources
+}
+```
+
+## Common Use Cases
+
+### Simple Feature Gate
+
+<CodeGroup>
+
+```tsx React
+function ExportButton() {
+  const { check } = useCustomer();
+  
+  const handleExport = () => {
+    const { allowed } = check({ featureId: "pdf_export" });
+    
+    if (!allowed) {
+      showUpgradeModal();
+      return;
+    }
+    
+    exportToPDF();
+  };
+  
+  return <button onClick={handleExport}>Export to PDF</button>;
+}
+```
+
+```typescript Backend
+app.post('/export', async (req, res) => {
+  const { allowed } = await autumn.balances.check({
+    customerId: req.user.id,
+    featureId: "pdf_export"
+  });
+  
+  if (!allowed) {
+    return res.status(403).json({ error: "Upgrade required" });
+  }
+  
+  const pdf = await generatePDF(req.body);
+  res.send(pdf);
+});
+```
+
+</CodeGroup>
+
+### Display Remaining Usage
+
+<CodeGroup>
+
+```tsx React
+function UsageMeter() {
+  const { check } = useCustomer();
+  const result = check({ featureId: "api_calls" });
+  
+  if (!result.balance) return null;
+  
+  const { remaining, granted, unlimited } = result.balance;
+  
+  if (unlimited) {
+    return <div>Unlimited API calls</div>;
+  }
+  
+  return (
+    <div>
+      {remaining} / {granted} API calls remaining
+      {remaining < granted * 0.1 && (
+        <button onClick={() => upgradePlan()}>Upgrade for more</button>
+      )}
+    </div>
+  );
+}
+```
+
+```typescript Backend
+app.get('/usage', async (req, res) => {
+  const result = await autumn.balances.check({
+    customerId: req.user.id,
+    featureId: "api_calls"
+  });
+  
+  res.json({
+    remaining: result.balance?.remaining || 0,
+    total: result.balance?.granted || 0,
+    unlimited: result.balance?.unlimited || false
+  });
+});
+```
+
+</CodeGroup>
+
+### Atomic Check + Track
+
+Use `sendEvent: true` to check access and record usage in a single atomic operation:
+
+<CodeGroup>
+
+```typescript Backend
+// Check if customer has 1000 tokens AND consume them atomically
+const result = await autumn.balances.check({
+  customerId: "cus_123",
+  featureId: "ai_tokens",
+  requiredBalance: 1000,
+  sendEvent: true,  // Atomically deduct tokens if allowed
+  properties: {
+    model: "gpt-4",
+    requestId: "req_xyz"
+  }
+});
+
+if (!result.allowed) {
+  return res.status(403).json({ error: "Insufficient tokens" });
+}
+
+// Tokens already deducted, proceed with AI generation
+await generateAI();
+```
+
+```python Python
+# Check and consume in one atomic operation
+result = autumn.balances.check(
+    customer_id="cus_123",
+    feature_id="ai_tokens",
+    required_balance=1000,
+    send_event=True,  # Atomically deduct if allowed
+    properties={"model": "gpt-4"}
+)
+
+if not result.allowed:
+    return {"error": "Insufficient tokens"}, 403
+
+# Proceed with generation
+generate_ai()
+```
+
+</CodeGroup>
+
+### Show Upgrade Options on Limit
+
+<CodeGroup>
+
+```tsx React
+function AnalyticsPage() {
+  const { check } = useCustomer();
+  const result = check({ 
+    featureId: "advanced_analytics",
+    withPreview: true 
+  });
+  
+  if (!result.allowed && result.preview) {
+    return (
+      <UpgradePrompt
+        title={result.preview.title}
+        message={result.preview.message}
+        plans={result.preview.products}
+      />
+    );
+  }
+  
+  return <AdvancedAnalyticsDashboard />;
+}
+```
+
+```typescript Backend
+const result = await autumn.balances.check({
+  customerId: "cus_123",
+  featureId: "advanced_analytics",
+  withPreview: true
+});
+
+if (!result.allowed && result.preview) {
+  return res.status(403).json({
+    error: result.preview.message,
+    upgradeOptions: result.preview.products
+  });
+}
+```
+
+</CodeGroup>
+
+### Entity-Scoped Checks (Per-Seat Limits)
+
+<CodeGroup>
+
+```typescript Backend
+// Check if a specific workspace has access
+const result = await autumn.balances.check({
+  customerId: "cus_123",
+  entityId: "workspace_abc",  // Check specific workspace
+  featureId: "team_members",
+  requiredBalance: 1  // Check if they can add 1 more member
+});
+
+if (!result.allowed) {
+  return res.status(403).json({ 
+    error: "Team member limit reached for this workspace" 
+  });
+}
+
+await addTeamMember(workspaceId, newMemberId);
+```
+
+</CodeGroup>
+
+## Error Handling
+
+<CodeGroup>
+
+```tsx React
+import { AutumnClientError } from '@useautumn/autumn-js/react';
+
+try {
+  const result = check({ featureId: "api_calls" });
+  
+  if (!result.allowed) {
+    console.log("Access denied", result.balance?.remaining);
+  }
+} catch (error) {
+  // Note: check() in React is local and doesn't throw
+  // It uses cached customer data from useCustomer()
+}
+```
+
+```typescript Backend
+try {
+  const result = await autumn.balances.check({
+    customerId: "cus_123",
+    featureId: "api_calls"
+  });
+} catch (error) {
+  if (error.code === "customer_not_found") {
+    // Customer doesn't exist
+  } else if (error.code === "feature_not_found") {
+    // Feature doesn't exist
+  }
+}
+```
+
+</CodeGroup>
+
+## Balance Breakdown
+
+When a customer has multiple sources of balance (multiple plans, top-ups, rollovers), the `breakdown` array shows where each portion comes from:
+
+```typescript
+const result = await autumn.balances.check({
+  customerId: "cus_123",
+  featureId: "api_calls"
+});
+
+result.balance?.breakdown?.forEach(item => {
+  console.log(`Plan ${item.planId}: ${item.remaining} of ${item.includedGrant} remaining`);
+  if (item.reset) {
+    console.log(`Resets at: ${new Date(item.reset.resetsAt)}`);
+  }
+});
+```
+
+## Query Parameters
+
+<ParamField query="skipCache" type="boolean" default="false">
+  Bypass cache and fetch fresh data from the database.
+</ParamField>
+
+<ParamField query="expand" type="string[]">
+  Expand related objects. Supports: `"balance.feature"`
+  
+  ```typescript
+  // Include full feature object in response
+  await autumn.balances.check(
+    { customerId: "cus_123", featureId: "api_calls" },
+    { expand: ["balance.feature"] }
+  );
+  ```
+</ParamField>
+
+## Related Endpoints
+
+- [Track Endpoint](/integration/track) - Record usage events after check
+- [Attach Endpoint](/integration/attach) - Upgrade customer when limits are reached
+- [Webhooks](/integration/webhooks) - Listen for balance changes
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Track Usage" icon="chart-line" href="/integration/track">
+    Learn how to record usage events
+  </Card>
+  <Card title="Handle Upgrades" icon="arrow-up" href="/integration/attach">
+    Upgrade customers when they hit limits
+  </Card>
+</CardGroup>

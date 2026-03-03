@@ -1,0 +1,151 @@
+---
+title: "List Invoices"
+openapi: "GET /v1/invoices"
+---
+
+Retrieve a list of invoices for your customers. You can filter by customer and entity, and control pagination.
+
+<Note>
+  Invoices are automatically created when customers subscribe to plans, make payments, or when billing events occur. This is a read-only endpoint.
+</Note>
+
+### Query Parameters
+
+<ParamField query="customer_id" type="string" required>
+  Filter invoices by customer ID (your unique customer identifier)
+</ParamField>
+
+<ParamField query="entity_id" type="string">
+  Filter invoices by entity ID. If provided, returns invoices for this specific entity plus any customer-level invoices (where `entity_id` is null)
+</ParamField>
+
+<ParamField query="limit" type="integer" default="100">
+  Maximum number of invoices to return (max: 100)
+</ParamField>
+
+### Response
+
+Returns an array of invoice objects with the following properties:
+
+<ResponseField name="plan_ids" type="string[]">
+  Array of plan IDs included in this invoice
+</ResponseField>
+
+<ResponseField name="stripe_id" type="string">
+  The Stripe invoice ID
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  The invoice status. Possible values: `draft`, `open`, `paid`, `void`, `uncollectible`
+</ResponseField>
+
+<ResponseField name="total" type="number">
+  The total amount of the invoice in the smallest currency unit (e.g., cents for USD)
+</ResponseField>
+
+<ResponseField name="currency" type="string">
+  Three-letter ISO currency code (e.g., `usd`, `eur`)
+</ResponseField>
+
+<ResponseField name="created_at" type="number">
+  Timestamp when the invoice was created (milliseconds since epoch)
+</ResponseField>
+
+<ResponseField name="hosted_invoice_url" type="string | null">
+  URL to the invoice page where customers can view and pay the invoice
+</ResponseField>
+
+<ResponseExample>
+```json 200
+[
+  {
+    "plan_ids": ["pro_plan", "addon_storage"],
+    "stripe_id": "in_1A2B3C4D5E6F7G8H",
+    "status": "paid",
+    "total": 2999,
+    "currency": "usd",
+    "created_at": 1759247877000,
+    "hosted_invoice_url": "https://invoice.stripe.com/i/acct_123/test_456"
+  },
+  {
+    "plan_ids": ["starter_plan"],
+    "stripe_id": "in_9H8G7F6E5D4C3B2A",
+    "status": "open",
+    "total": 999,
+    "currency": "usd",
+    "created_at": 1756569477000,
+    "hosted_invoice_url": "https://invoice.stripe.com/i/acct_123/test_789"
+  }
+]
+```
+</ResponseExample>
+
+### Common Use Cases
+
+<CodeGroup>
+
+```typescript List customer invoices
+const response = await fetch(
+  'https://api.autumn.com/v1/invoices?customer_id=cus_123&limit=50',
+  {
+    headers: {
+      'Authorization': `Bearer ${process.env.AUTUMN_SECRET_KEY}`
+    }
+  }
+);
+
+const invoices = await response.json();
+console.log(`Found ${invoices.length} invoices`);
+```
+
+```typescript Filter by entity
+const response = await fetch(
+  'https://api.autumn.com/v1/invoices?customer_id=cus_123&entity_id=ent_456',
+  {
+    headers: {
+      'Authorization': `Bearer ${process.env.AUTUMN_SECRET_KEY}`
+    }
+  }
+);
+
+const invoices = await response.json();
+// Returns invoices for entity_id=ent_456 plus customer-level invoices
+```
+
+```python List invoices with pagination
+import requests
+
+response = requests.get(
+    'https://api.autumn.com/v1/invoices',
+    params={
+        'customer_id': 'cus_123',
+        'limit': 25
+    },
+    headers={'Authorization': f'Bearer {os.environ["AUTUMN_SECRET_KEY"]}'}
+)
+
+invoices = response.json()
+for invoice in invoices:
+    print(f"{invoice['stripe_id']}: {invoice['status']} - ${invoice['total']/100}")
+```
+
+</CodeGroup>
+
+### Invoice Statuses
+
+- **draft** - Invoice is still being prepared
+- **open** - Invoice has been finalized and is awaiting payment
+- **paid** - Invoice has been successfully paid
+- **void** - Invoice has been voided and cannot be paid
+- **uncollectible** - Payment attempts have failed and the invoice is marked as uncollectible
+
+### Line Items
+
+Invoices contain line items that detail the charges. Each line item includes:
+- Plan or feature being charged
+- Billing period (start and end dates)
+- Amount and currency
+- Quantity (for metered or seat-based billing)
+- Proration adjustments (for mid-cycle changes)
+
+To access detailed line item information, use the [Get Invoice](/api/invoices/get) endpoint with a specific `stripe_id`.

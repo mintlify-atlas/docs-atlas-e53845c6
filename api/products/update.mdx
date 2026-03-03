@@ -1,0 +1,378 @@
+---
+title: "Update Product"
+api: "PATCH /products/:id"
+---
+
+Updates an existing product. You can also use POST for this endpoint (will be deprecated in the future).
+
+## Path Parameters
+
+<ParamField path="product_id" type="string" required>
+  The ID of the product to update.
+</ParamField>
+
+## Request Body
+
+<ParamField body="id" type="string">
+  The new ID of the product. Used to rename the product ID.
+</ParamField>
+
+<ParamField body="name" type="string">
+  The name of the product.
+</ParamField>
+
+<ParamField body="description" type="string">
+  The description of the product.
+</ParamField>
+
+<ParamField body="is_add_on" type="boolean">
+  Whether the product is an add-on.
+</ParamField>
+
+<ParamField body="is_default" type="boolean">
+  Whether the product is the default product.
+</ParamField>
+
+<ParamField body="group" type="string">
+  Product group which this product belongs to.
+</ParamField>
+
+<ParamField body="archived" type="boolean">
+  Archive this product using this flag. Archived products are hidden on the dashboard.
+</ParamField>
+
+<ParamField body="items" type="array">
+  Array of product items that define the product's features and pricing. Updates the entire items array.
+  
+  <Expandable title="Product Item Object">
+    <ParamField body="type" type="enum">
+      The type of the product item.
+      
+      - `price` - Fixed price item
+      - `priced_feature` - Feature with pricing
+      - `feature` - Feature without pricing
+    </ParamField>
+    
+    <ParamField body="feature_id" type="string">
+      The feature ID of the product item. Should be null for fixed price items.
+    </ParamField>
+    
+    <ParamField body="included_usage" type="number | 'inf'">
+      The amount of usage included for this feature (per interval).
+    </ParamField>
+    
+    <ParamField body="interval" type="enum">
+      The reset or billing interval of the product item.
+      
+      - `day`
+      - `week`
+      - `month`
+      - `year`
+    </ParamField>
+    
+    <ParamField body="interval_count" type="number">
+      Interval count of the feature.
+    </ParamField>
+    
+    <ParamField body="price" type="number">
+      The price of the product item. Should be null if tiered pricing is set.
+    </ParamField>
+    
+    <ParamField body="usage_model" type="enum">
+      Whether the feature should be prepaid upfront or billed based on usage.
+      
+      - `prepaid`
+      - `pay_per_use`
+    </ParamField>
+    
+    <ParamField body="billing_units" type="number">
+      The billing units of the product item.
+    </ParamField>
+    
+    <ParamField body="tiers" type="array">
+      Tiered pricing for the product item.
+      
+      <Expandable title="Tier Object">
+        <ParamField body="to" type="number | 'inf'" required>
+          The maximum amount of usage for this tier.
+        </ParamField>
+        
+        <ParamField body="amount" type="number" required>
+          The price of the product item for this tier.
+        </ParamField>
+        
+        <ParamField body="flat_amount" type="number">
+          A flat fee charged for this tier, in addition to the per-unit amount.
+        </ParamField>
+      </Expandable>
+    </ParamField>
+    
+    <ParamField body="tier_behavior" type="enum">
+      The type of tiered pricing.
+      
+      - `graduated`
+      - `volume`
+    </ParamField>
+    
+    <ParamField body="reset_usage_when_enabled" type="boolean">
+      Whether the usage should be reset when the product is enabled.
+    </ParamField>
+    
+    <ParamField body="entity_feature_id" type="string">
+      The feature ID of the entity (like seats) to track sub-balances for.
+    </ParamField>
+    
+    <ParamField body="config" type="object">
+      Configuration for rollover and proration behavior.
+      
+      <Expandable title="Config Object">
+        <ParamField body="rollover" type="object">
+          Rollover configuration.
+          
+          <Expandable title="Rollover Object">
+            <ParamField body="max" type="number">
+              Maximum amount that can be rolled over.
+            </ParamField>
+            
+            <ParamField body="duration" type="enum" default="month">
+              Duration type for rollover expiry.
+              
+              - `day`
+              - `week`
+              - `month`
+              - `year`
+            </ParamField>
+            
+            <ParamField body="length" type="number" required>
+              Length of the duration.
+            </ParamField>
+          </Expandable>
+        </ParamField>
+        
+        <ParamField body="on_increase" type="enum">
+          Behavior when quantity increases.
+          
+          - `prorate`
+          - `no_prorate`
+        </ParamField>
+        
+        <ParamField body="on_decrease" type="enum">
+          Behavior when quantity decreases.
+          
+          - `prorate`
+          - `no_prorate`
+        </ParamField>
+      </Expandable>
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="free_trial" type="object">
+  Free trial configuration for this product.
+  
+  <Expandable title="Free Trial Object">
+    <ParamField body="duration" type="enum" required default="day">
+      The duration type of the free trial.
+      
+      - `day`
+      - `month`
+      - `year`
+    </ParamField>
+    
+    <ParamField body="length" type="number" required>
+      The length of the duration type specified.
+    </ParamField>
+    
+    <ParamField body="unique_fingerprint" type="boolean" default={false}>
+      Whether the free trial is limited to one per customer fingerprint.
+    </ParamField>
+    
+    <ParamField body="card_required" type="boolean" default={true}>
+      Whether the free trial requires a card.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Response
+
+<ResponseField name="id" type="string">
+  The ID of the product.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The name of the product.
+</ResponseField>
+
+<ResponseField name="group" type="string">
+  Product group which this product belongs to.
+</ResponseField>
+
+<ResponseField name="env" type="string">
+  The environment of the product.
+</ResponseField>
+
+<ResponseField name="is_add_on" type="boolean">
+  Whether the product is an add-on.
+</ResponseField>
+
+<ResponseField name="is_default" type="boolean">
+  Whether the product is the default product.
+</ResponseField>
+
+<ResponseField name="archived" type="boolean">
+  Whether this product has been archived.
+</ResponseField>
+
+<ResponseField name="version" type="number">
+  The current version of the product.
+</ResponseField>
+
+<ResponseField name="created_at" type="number">
+  The timestamp of when the product was created.
+</ResponseField>
+
+<ResponseField name="items" type="array">
+  Array of product items that define the product's features and pricing.
+</ResponseField>
+
+<ResponseField name="free_trial" type="object">
+  Free trial configuration for this product, if available.
+</ResponseField>
+
+<ResponseField name="base_variant_id" type="string">
+  ID of the base variant this product is derived from.
+</ResponseField>
+
+<ResponseField name="scenario" type="enum">
+  Scenario for when this product is used in attach flows.
+</ResponseField>
+
+<ResponseField name="properties" type="object">
+  Additional product properties.
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X PATCH https://api.autumnai.com/products/Pro%20Product \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Pro Plan (Updated)",
+    "description": "Our premium plan with advanced features",
+    "items": [
+      {
+        "price": 25,
+        "interval": "month"
+      },
+      {
+        "feature_id": "messages",
+        "included_usage": 2000,
+        "price": 0.4,
+        "interval": "month",
+        "usage_model": "pay_per_use"
+      }
+    ]
+  }'
+```
+
+```typescript TypeScript
+import { Autumn } from '@autumnai/node-sdk';
+
+const autumn = new Autumn({
+  apiKey: process.env.AUTUMN_API_KEY,
+});
+
+const product = await autumn.products.update({
+  productId: 'Pro Product',
+  name: 'Pro Plan (Updated)',
+  description: 'Our premium plan with advanced features',
+  items: [
+    {
+      price: 25,
+      interval: 'month',
+    },
+    {
+      feature_id: 'messages',
+      included_usage: 2000,
+      price: 0.4,
+      interval: 'month',
+      usage_model: 'pay_per_use',
+    },
+  ],
+});
+```
+
+```python Python
+from autumn import Autumn
+
+autumn = Autumn(api_key="YOUR_API_KEY")
+
+product = autumn.products.update(
+    product_id="Pro Product",
+    name="Pro Plan (Updated)",
+    description="Our premium plan with advanced features",
+    items=[
+        {
+            "price": 25,
+            "interval": "month",
+        },
+        {
+            "feature_id": "messages",
+            "included_usage": 2000,
+            "price": 0.4,
+            "interval": "month",
+            "usage_model": "pay_per_use",
+        },
+    ],
+)
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "id": "Pro Product",
+  "name": "Pro Plan (Updated)",
+  "description": "Our premium plan with advanced features",
+  "group": null,
+  "env": "sandbox",
+  "is_add_on": false,
+  "is_default": false,
+  "archived": false,
+  "version": 2,
+  "created_at": 1761296829908,
+  "items": [
+    {
+      "type": "price",
+      "feature_id": null,
+      "interval": "month",
+      "interval_count": 1,
+      "price": 25,
+      "display": {
+        "primary_text": "$25",
+        "secondary_text": "per month"
+      }
+    },
+    {
+      "type": "priced_feature",
+      "feature_id": "messages",
+      "included_usage": 2000,
+      "interval": "month",
+      "interval_count": 1,
+      "price": 0.4,
+      "usage_model": "pay_per_use",
+      "billing_units": 1000,
+      "reset_usage_when_enabled": true,
+      "entity_feature_id": null,
+      "display": {
+        "primary_text": "2,000 Messages",
+        "secondary_text": "then $0.4 per 1,000 Messages"
+      }
+    }
+  ],
+  "free_trial": null,
+  "base_variant_id": null,
+  "scenario": "new"
+}
+```
+</ResponseExample>

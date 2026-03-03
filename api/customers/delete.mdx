@@ -1,0 +1,135 @@
+---
+title: 'Delete Customer'
+openapi: 'POST /v1/customers.delete'
+---
+
+Deletes a customer by ID. This operation removes the customer from Autumn and optionally from Stripe.
+
+<Warning>
+  This action is irreversible. Once a customer is deleted, all associated data including subscriptions, balances, and usage history will be permanently removed.
+</Warning>
+
+<Note>
+  This endpoint can also be called using `DELETE /v1/customers/{customer_id}` for REST-style deletion.
+</Note>
+
+## Request Body
+
+<ParamField body="customer_id" type="string" required>
+  ID of the customer to delete.
+</ParamField>
+
+<ParamField body="delete_in_stripe" type="boolean" default="false">
+  Whether to also delete the customer in Stripe. If `true`, the customer will be permanently removed from both Autumn and Stripe. If `false`, the customer is only removed from Autumn but their Stripe customer record remains.
+</ParamField>
+
+## Response
+
+Returns a confirmation object:
+
+<ResponseField name="success" type="boolean">
+  Indicates whether the deletion was successful. Returns `true` if the customer was deleted.
+</ResponseField>
+
+## Example Requests
+
+<CodeGroup>
+
+```typescript Delete from Autumn Only
+const result = await autumn.customers.delete({
+  customer_id: "cus_123",
+  delete_in_stripe: false
+});
+
+console.log(result.success); // true
+```
+
+```typescript Delete from Autumn and Stripe
+const result = await autumn.customers.delete({
+  customer_id: "cus_123",
+  delete_in_stripe: true
+});
+```
+
+```python Python SDK
+result = autumn.customers.delete(
+    customer_id="cus_123",
+    delete_in_stripe=False
+)
+
+print(result.success)  # True
+```
+
+```bash cURL
+curl -X POST https://api.useautumn.com/v1/customers.delete \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "x-api-version: 2.1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "cus_123",
+    "delete_in_stripe": false
+  }'
+```
+
+```bash cURL (REST style)
+curl -X DELETE https://api.useautumn.com/v1/customers/cus_123 \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "x-api-version: 2.1" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "delete_in_stripe": false
+  }'
+```
+
+</CodeGroup>
+
+## Example Response
+
+```json
+{
+  "success": true
+}
+```
+
+## What Gets Deleted
+
+When you delete a customer, the following data is permanently removed from Autumn:
+
+- Customer record (ID, name, email, metadata, etc.)
+- All active and scheduled subscriptions
+- All purchases
+- All feature balances and usage history
+- All customer entitlements
+- Cached customer data
+
+## Stripe Deletion Behavior
+
+### `delete_in_stripe: false` (default)
+- Customer is removed from Autumn only
+- Stripe customer record remains intact
+- Active Stripe subscriptions are not affected
+- Useful if you want to maintain payment history in Stripe
+
+### `delete_in_stripe: true`
+- Customer is removed from both Autumn and Stripe
+- All Stripe subscriptions are canceled
+- Stripe customer record is permanently deleted
+- Cannot be undone - use with caution
+
+## Error Responses
+
+If the customer does not exist, you'll receive a 404 error:
+
+```json
+{
+  "message": "Customer not found",
+  "code": "not_found"
+}
+```
+
+## Best Practices
+
+- **Test in sandbox first**: Always test deletion behavior in your sandbox environment before deleting customers in production.
+- **Export data first**: If you need to retain customer data for compliance or record-keeping, export it before deletion.
+- **Consider deactivation**: Instead of deleting, consider canceling subscriptions and keeping the customer record for historical purposes.
+- **Stripe integration**: If you use Stripe for payment processing outside of Autumn, carefully consider whether to set `delete_in_stripe: true`.

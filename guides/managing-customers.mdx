@@ -1,0 +1,220 @@
+---
+title: Managing Customers
+description: Learn how to create, view, and manage customers in your Autumn dashboard
+---
+
+The Customers page is your central hub for managing all customer accounts, subscriptions, and usage data. This guide covers common customer management workflows.
+
+## Viewing Your Customer List
+
+Navigate to the **Customers** tab in your dashboard to see all customers in your organization. The customer list displays:
+
+- Customer name, email, or ID
+- Current plan status
+- Active subscriptions
+- Account balance
+- Sign-up date
+
+<Tip>
+Use the search bar to quickly find customers by name, email, or ID. You can also filter by product subscription or account status.
+</Tip>
+
+## Creating a New Customer
+
+<Steps>
+  <Step title="Open the Create Customer Dialog">
+    Click the **Create Customer** button in the top-right corner of the Customers page.
+
+    <Note>
+    You can also press `N` as a keyboard shortcut to quickly open the create dialog.
+    </Note>
+  </Step>
+
+  <Step title="Enter Customer Details">
+    Fill in the customer information:
+    - **Name**: Optional display name for the customer
+    - **ID**: Your internal customer ID (from your database)
+    - **Email**: Optional email address for billing and notifications
+
+    <Note>
+    You must provide either an **ID** or **Email** to create a customer. The ID should match your application's user ID for seamless integration.
+    </Note>
+  </Step>
+
+  <Step title="Create the Customer">
+    Click **Create** (or press `Cmd+Enter`) to create the customer. You'll be redirected to their customer detail page.
+  </Step>
+</Steps>
+
+## Customer Detail Page
+
+Clicking any customer in the list opens their detail page, which shows:
+
+### Plans Section
+View all active and expired subscriptions:
+- **Current plan**: The customer's active subscription
+- **Add-ons**: Any additional products they've purchased
+- **Plan status**: Active, canceled, or expired
+- **Billing cycle**: Next renewal date and amount
+
+<Tip>
+Click any plan to see detailed subscription information, including start date, billing interval, and cancellation status.
+</Tip>
+
+### Feature Usage
+Track how customers are using metered features:
+- **Current usage**: Amount consumed in the current billing period
+- **Limits**: Maximum allowed usage for their plan
+- **Reset date**: When the usage counter resets
+- **Usage percentage**: Visual bar showing consumption
+
+### Analytics
+View customer-specific usage analytics:
+- Filter events by type and date range
+- See usage graphs over time
+- Export raw event data
+- Group by custom properties
+
+### Invoices
+Access all customer invoices:
+- **Invoice status**: Draft, paid, or unpaid
+- **Products billed**: Which plans are on each invoice
+- **Total amount**: Price and currency
+- **Created date**: When the invoice was generated
+
+<Note>
+Click any invoice to view detailed line items (admin users) or open the Stripe invoice URL in a new tab.
+</Note>
+
+## Attaching Products to Customers
+
+Subscribe customers to plans directly from the dashboard.
+
+<Steps>
+  <Step title="Open the Customer Detail Page">
+    Navigate to the customer you want to subscribe to a plan.
+  </Step>
+
+  <Step title="Click Attach Product">
+    In the Plans section, click the **Attach Product** button to open the product attachment sheet.
+  </Step>
+
+  <Step title="Select a Product">
+    Choose from your available products. The dropdown shows:
+    - All active products in your organization
+    - Pricing information
+    - Whether it's an add-on or base plan
+
+    <Tip>
+    If the customer has entities (team accounts), you'll see options to attach the plan to the customer level or a specific entity.
+    </Tip>
+  </Step>
+
+  <Step title="Configure the Plan">
+    Customize the subscription:
+    - **Billing cycle**: Override the default interval if needed
+    - **Free trial**: Add a trial period
+    - **Custom pricing**: Modify the price for this specific customer
+    - **Start date**: Choose when the subscription begins
+  </Step>
+
+  <Step title="Review Advanced Settings">
+    Configure optional behaviors:
+    - **Proration**: How to handle mid-cycle changes
+    - **Payment collection**: Immediate or deferred billing
+    - **Quantity**: For per-seat or per-unit plans
+  </Step>
+
+  <Step title="Preview and Attach">
+    Review the subscription preview showing:
+    - Total amount to charge
+    - Billing schedule
+    - Features included
+
+    Click **Attach** to complete the subscription.
+  </Step>
+</Steps>
+
+## Updating Customer Subscriptions
+
+Modify existing subscriptions from the customer detail page:
+
+- **Change Plan**: Upgrade or downgrade to a different product
+- **Update Quantity**: Adjust seat count or unit limits
+- **Cancel Subscription**: End the subscription immediately or at period end
+- **Uncancel**: Restore a canceled subscription before it expires
+
+<Tip>
+When upgrading or downgrading, you can choose whether to prorate charges based on the time remaining in the current billing period.
+</Tip>
+
+## Managing Customer Balance
+
+For metered features, you can manually adjust customer balances:
+
+<Steps>
+  <Step title="Navigate to Feature Usage">
+    On the customer detail page, find the feature in the Feature Usage table.
+  </Step>
+
+  <Step title="Edit Balance">
+    Click the balance value to open the edit sheet.
+  </Step>
+
+  <Step title="Grant or Deduct Credits">
+    - **Grant Balance**: Add credits to the customer's account
+    - **Set Balance**: Override the current value
+    - **Deduct Balance**: Remove credits
+
+    <Note>
+    Balance changes are logged and displayed in the customer's activity timeline.
+    </Note>
+  </Step>
+</Steps>
+
+## Working with Entities
+
+Entities represent teams or organizations within a customer account.
+
+- **View Entities**: Listed at the top of the customer detail page
+- **Select Entity**: Click an entity to filter the view to that team's data
+- **Attach to Entity**: When attaching products, choose entity-level or customer-level subscription
+
+<Tip>
+Entity-level subscriptions are useful for B2B SaaS where companies have multiple teams, each with their own plan and usage.
+</Tip>
+
+## Filtering and Saved Views
+
+Create custom filtered views of your customer list:
+
+1. Apply filters for product, status, or custom properties
+2. Click **Save View** to store the filter configuration
+3. Access saved views from the filter dropdown
+4. Share view URLs with team members
+
+## Keyboard Shortcuts
+
+- `N`: Create new customer
+- `Cmd+Enter`: Confirm customer creation
+- `Escape`: Close dialogs and sheets
+
+## Best Practices
+
+<Tip>
+**Use Consistent IDs**: Always pass the same customer ID from your application to Autumn. This ensures data stays in sync.
+</Tip>
+
+<Tip>
+**Check Before Creating**: Use the search to verify a customer doesn't already exist before creating a duplicate account.
+</Tip>
+
+<Note>
+Customers created in the dashboard are immediately available via the API and `/check` endpoint. Changes sync in real-time.
+</Note>
+
+## Next Steps
+
+- Learn how to [track usage](/guides/analytics) with the Analytics features
+- Explore [invoice management](/guides/invoices) for billing workflows
+- Use the API to automate customer provisioning

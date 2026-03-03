@@ -1,0 +1,292 @@
+---
+title: "List Products"
+api: "GET /products"
+---
+
+Retrieves a list of all products in your environment.
+
+## Response
+
+<ResponseField name="list" type="array">
+  Array of product objects.
+  
+  <Expandable title="Product Object">
+    <ResponseField name="id" type="string">
+      The ID of the product you set when creating the product.
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      The name of the product.
+    </ResponseField>
+    
+    <ResponseField name="group" type="string">
+      Product group which this product belongs to.
+    </ResponseField>
+    
+    <ResponseField name="env" type="string">
+      The environment of the product (`sandbox` or `production`).
+    </ResponseField>
+    
+    <ResponseField name="is_add_on" type="boolean">
+      Whether the product is an add-on and can be purchased alongside other products.
+    </ResponseField>
+    
+    <ResponseField name="is_default" type="boolean">
+      Whether the product is the default product.
+    </ResponseField>
+    
+    <ResponseField name="archived" type="boolean">
+      Whether this product has been archived and is no longer available.
+    </ResponseField>
+    
+    <ResponseField name="version" type="number">
+      The current version of the product.
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="number">
+      The timestamp of when the product was created in milliseconds since epoch.
+    </ResponseField>
+    
+    <ResponseField name="items" type="array">
+      Array of product items that define the product's features and pricing.
+      
+      <Expandable title="Product Item Object">
+        <ResponseField name="type" type="enum">
+          The type of the product item (`price`, `priced_feature`, or `feature`).
+        </ResponseField>
+        
+        <ResponseField name="feature_id" type="string">
+          The feature ID of the product item. If the item is a fixed price, will be `null`.
+        </ResponseField>
+        
+        <ResponseField name="feature_type" type="enum">
+          The type of feature (`single_use`, `continuous_use`, `boolean`, or `static`).
+        </ResponseField>
+        
+        <ResponseField name="included_usage" type="number | 'inf'">
+          The amount of usage included for this feature.
+        </ResponseField>
+        
+        <ResponseField name="interval" type="enum">
+          The reset or billing interval of the product item.
+        </ResponseField>
+        
+        <ResponseField name="interval_count" type="number">
+          The interval count of the product item.
+        </ResponseField>
+        
+        <ResponseField name="price" type="number">
+          The price of the product item.
+        </ResponseField>
+        
+        <ResponseField name="tiers" type="array">
+          Tiered pricing for the product item.
+        </ResponseField>
+        
+        <ResponseField name="tier_behavior" type="enum">
+          How tiers are applied (`graduated` or `volume`).
+        </ResponseField>
+        
+        <ResponseField name="usage_model" type="enum">
+          Whether the feature should be prepaid upfront or billed based on usage (`prepaid` or `pay_per_use`).
+        </ResponseField>
+        
+        <ResponseField name="billing_units" type="number">
+          The amount per billing unit.
+        </ResponseField>
+        
+        <ResponseField name="reset_usage_when_enabled" type="boolean">
+          Whether the usage should be reset when the product is enabled.
+        </ResponseField>
+        
+        <ResponseField name="entity_feature_id" type="string">
+          The entity feature ID of the product item if applicable.
+        </ResponseField>
+        
+        <ResponseField name="display" type="object">
+          Display configuration for the product item.
+          
+          <Expandable title="Display Object">
+            <ResponseField name="primary_text" type="string">
+              Primary display text.
+            </ResponseField>
+            
+            <ResponseField name="secondary_text" type="string">
+              Secondary display text.
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+        
+        <ResponseField name="config" type="object">
+          Configuration for rollover and proration behavior.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="free_trial" type="object">
+      Free trial configuration for this product, if available.
+      
+      <Expandable title="Free Trial Object">
+        <ResponseField name="duration" type="enum">
+          The duration type of the free trial (`day`, `month`, or `year`).
+        </ResponseField>
+        
+        <ResponseField name="length" type="number">
+          The length of the duration type specified.
+        </ResponseField>
+        
+        <ResponseField name="unique_fingerprint" type="boolean">
+          Whether the free trial is limited to one per customer fingerprint.
+        </ResponseField>
+        
+        <ResponseField name="card_required" type="boolean">
+          Whether the free trial requires a card.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    
+    <ResponseField name="base_variant_id" type="string">
+      ID of the base variant this product is derived from.
+    </ResponseField>
+    
+    <ResponseField name="scenario" type="enum">
+      Scenario for when this product is used in attach flows.
+    </ResponseField>
+    
+    <ResponseField name="properties" type="object">
+      Additional product properties.
+      
+      <Expandable title="Properties Object">
+        <ResponseField name="is_free" type="boolean">
+          True if the product has no base price or usage prices.
+        </ResponseField>
+        
+        <ResponseField name="is_one_off" type="boolean">
+          True if the product only contains a one-time price.
+        </ResponseField>
+        
+        <ResponseField name="interval_group" type="string">
+          The billing interval group for recurring products.
+        </ResponseField>
+        
+        <ResponseField name="has_trial" type="boolean">
+          True if the product includes a free trial.
+        </ResponseField>
+        
+        <ResponseField name="updateable" type="boolean">
+          True if the product can be updated after creation.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X GET https://api.autumnai.com/products \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```typescript TypeScript
+import { Autumn } from '@autumnai/node-sdk';
+
+const autumn = new Autumn({
+  apiKey: process.env.AUTUMN_API_KEY,
+});
+
+const products = await autumn.products.list();
+```
+
+```python Python
+from autumn import Autumn
+
+autumn = Autumn(api_key="YOUR_API_KEY")
+
+products = autumn.products.list()
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "list": [
+    {
+      "id": "Free Plan",
+      "name": "Free Plan",
+      "group": null,
+      "env": "sandbox",
+      "is_add_on": false,
+      "is_default": true,
+      "archived": false,
+      "version": 1,
+      "created_at": 1761296829908,
+      "items": [
+        {
+          "type": "feature",
+          "feature_id": "messages",
+          "included_usage": 10,
+          "interval": "month",
+          "interval_count": 1,
+          "reset_usage_when_enabled": true,
+          "entity_feature_id": null,
+          "display": {
+            "primary_text": "10 Messages"
+          }
+        }
+      ],
+      "free_trial": null,
+      "base_variant_id": null,
+      "scenario": "new"
+    },
+    {
+      "id": "Pro Product",
+      "name": "Pro Plan",
+      "group": null,
+      "env": "sandbox",
+      "is_add_on": false,
+      "is_default": false,
+      "archived": false,
+      "version": 1,
+      "created_at": 1761296829908,
+      "items": [
+        {
+          "type": "price",
+          "feature_id": null,
+          "interval": "month",
+          "interval_count": 1,
+          "price": 20,
+          "display": {
+            "primary_text": "$20",
+            "secondary_text": "per month"
+          }
+        },
+        {
+          "type": "priced_feature",
+          "feature_id": "messages",
+          "included_usage": 1000,
+          "interval": "month",
+          "interval_count": 1,
+          "price": 0.5,
+          "usage_model": "pay_per_use",
+          "billing_units": 1000,
+          "reset_usage_when_enabled": true,
+          "entity_feature_id": null,
+          "display": {
+            "primary_text": "1,000 Messages",
+            "secondary_text": "then $0.5 per 1,000 Messages"
+          }
+        }
+      ],
+      "free_trial": {
+        "duration": "day",
+        "length": 7,
+        "unique_fingerprint": false,
+        "card_required": true
+      },
+      "base_variant_id": null,
+      "scenario": "new"
+    }
+  ]
+}
+```
+</ResponseExample>

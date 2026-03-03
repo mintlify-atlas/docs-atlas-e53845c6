@@ -1,0 +1,260 @@
+---
+title: Installation & Setup
+description: Install and configure the Autumn JavaScript/TypeScript SDK
+---
+
+## Installation
+
+Install the `autumn-js` package using your preferred package manager:
+
+<CodeGroup>
+```bash npm
+npm install autumn-js
+```
+
+```bash yarn
+yarn add autumn-js
+```
+
+```bash pnpm
+pnpm add autumn-js
+```
+
+```bash bun
+bun add autumn-js
+```
+</CodeGroup>
+
+## Package Exports
+
+The SDK provides multiple entry points for different use cases:
+
+- **`autumn-js`** - Core SDK (re-exports from `@useautumn/sdk`)
+- **`autumn-js/react`** - React hooks and provider
+- **`autumn-js/backend`** - Backend integration utilities
+- **`autumn-js/hono`** - Hono framework adapter
+- **`autumn-js/next`** - Next.js framework adapter
+- **`autumn-js/better-auth`** - Better Auth plugin
+
+## Quick Start
+
+### Frontend (React)
+
+Wrap your app with the `AutumnProvider` to enable React hooks:
+
+```tsx
+import { AutumnProvider } from 'autumn-js/react';
+
+function App() {
+  return (
+    <AutumnProvider
+      backendUrl="https://api.example.com"
+      pathPrefix="/api/autumn"
+    >
+      <YourApp />
+    </AutumnProvider>
+  );
+}
+```
+
+#### Provider Props
+
+<ParamField path="backendUrl" type="string" optional>
+  Base URL for your backend server (e.g., `"https://api.example.com"`). Defaults to the current origin.
+</ParamField>
+
+<ParamField path="pathPrefix" type="string" optional>
+  Path prefix for Autumn routes. Defaults to `"/api/autumn"`, or `"/api/auth/autumn"` if `useBetterAuth` is enabled.
+</ParamField>
+
+<ParamField path="useBetterAuth" type="boolean" optional>
+  Enable Better Auth integration. Sets `pathPrefix` to `"/api/auth/autumn"` and `includeCredentials` to `true`.
+</ParamField>
+
+<ParamField path="includeCredentials" type="boolean" optional>
+  Include credentials (cookies) in cross-origin requests. Defaults to `true` if `useBetterAuth` is enabled.
+</ParamField>
+
+### Backend (Next.js)
+
+Create an API route to handle Autumn requests:
+
+```ts
+// app/api/autumn/[...autumn]/route.ts
+import { autumnHandler } from 'autumn-js/next';
+import { cookies } from 'next/headers';
+
+const handler = autumnHandler({
+  secretKey: process.env.AUTUMN_SECRET_KEY,
+  identify: async (request) => {
+    // Extract user ID from your auth system
+    const sessionCookie = cookies().get('session');
+    if (!sessionCookie) return null;
+    
+    const userId = await validateSession(sessionCookie.value);
+    return { customerId: userId };
+  },
+});
+
+export { handler as GET, handler as POST, handler as DELETE };
+```
+
+### Backend (Hono)
+
+Add the Autumn middleware to your Hono app:
+
+```ts
+import { Hono } from 'hono';
+import { autumnHandler } from 'autumn-js/hono';
+
+const app = new Hono();
+
+app.use('/api/autumn/*', autumnHandler({
+  secretKey: process.env.AUTUMN_SECRET_KEY,
+  identify: async (c) => {
+    // Extract user ID from context
+    const user = c.get('user');
+    if (!user) return null;
+    
+    return { customerId: user.id };
+  },
+}));
+```
+
+## Better Auth Integration
+
+If you're using [Better Auth](https://better-auth.com), install the Autumn plugin:
+
+### Backend Setup
+
+```ts
+import { betterAuth } from 'better-auth';
+import { autumn } from 'autumn-js/better-auth';
+
+export const auth = betterAuth({
+  // ... your auth config
+  plugins: [
+    autumn({
+      secretKey: process.env.AUTUMN_SECRET_KEY,
+      customerScope: 'user', // 'user' | 'organization' | 'user_and_organization'
+    }),
+  ],
+});
+```
+
+### Frontend Setup
+
+```tsx
+import { AutumnProvider } from 'autumn-js/react';
+
+function App() {
+  return (
+    <AutumnProvider useBetterAuth>
+      <YourApp />
+    </AutumnProvider>
+  );
+}
+```
+
+#### Customer Scope Options
+
+<ParamField path="customerScope" type="'user' | 'organization' | 'user_and_organization'" default="user">
+  Determines how customer identity is resolved:
+  - `user` - Customer ID is the user's ID
+  - `organization` - Customer ID is the active organization's ID
+  - `user_and_organization` - Customer ID combines user and organization IDs
+</ParamField>
+
+#### Custom Identity Resolution
+
+For advanced use cases, provide a custom `identify` function:
+
+```ts
+autumn({
+  secretKey: process.env.AUTUMN_SECRET_KEY,
+  identify: ({ session, organization }) => {
+    if (!session) return null;
+    
+    // Custom logic to determine customer ID
+    const customerId = organization?.id ?? session.user.id;
+    
+    return {
+      customerId,
+      customerData: {
+        email: session.user.email,
+        name: organization?.name ?? session.user.name,
+      },
+    };
+  },
+})
+```
+
+## Environment Variables
+
+<ParamField path="AUTUMN_SECRET_KEY" type="string" required>
+  Your Autumn API secret key. Get this from your [Autumn dashboard](https://app.useautumn.com).
+</ParamField>
+
+## TypeScript Support
+
+The SDK is written in TypeScript and provides full type definitions. All hooks, methods, and responses are fully typed:
+
+```tsx
+import { useCustomer } from 'autumn-js/react';
+import type { Customer, AttachResponse } from 'autumn-js';
+
+function MyComponent() {
+  const { data, attach } = useCustomer();
+  
+  // `data` is typed as Customer | null | undefined
+  // `attach` returns Promise<AttachResponse>
+}
+```
+
+## Error Handling
+
+All client methods throw `AutumnClientError` on failure:
+
+```tsx
+import { AutumnClientError } from 'autumn-js/react';
+
+try {
+  await attach({ planId: 'plan_123' });
+} catch (error) {
+  if (error instanceof AutumnClientError) {
+    console.error('Error:', error.message);
+    console.error('Code:', error.code);
+    console.error('Status:', error.statusCode);
+    console.error('Details:', error.details);
+  }
+}
+```
+
+### AutumnClientError Properties
+
+<ResponseField name="message" type="string">
+  Human-readable error message
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  Machine-readable error code
+</ResponseField>
+
+<ResponseField name="statusCode" type="number">
+  HTTP status code
+</ResponseField>
+
+<ResponseField name="details" type="unknown" optional>
+  Additional error details if available
+</ResponseField>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="React Hooks" icon="react" href="/sdks/javascript/react-hooks">
+    Learn about all available React hooks
+  </Card>
+  <Card title="Backend Integration" icon="server" href="/sdks/javascript/backend-integration">
+    Set up backend handlers and custom routes
+  </Card>
+</CardGroup>

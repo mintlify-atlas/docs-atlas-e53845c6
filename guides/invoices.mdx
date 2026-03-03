@@ -1,0 +1,247 @@
+---
+title: Invoice Management
+description: Understand how to view, manage, and work with invoices in the Autumn dashboard
+---
+
+Invoices in Autumn track all billing activity for your customers. This guide explains how to view invoice details, understand invoice statuses, and manage billing workflows.
+
+## Understanding Invoices
+
+Invoices are automatically generated when:
+- A customer subscribes to a paid plan
+- A recurring billing cycle completes
+- Usage charges are calculated at period end
+- Manual invoices are created via the API
+
+<Note>
+Autumn uses Stripe for payment processing. All invoices are synced with your Stripe account.
+</Note>
+
+## Viewing Customer Invoices
+
+<Steps>
+  <Step title="Navigate to Customer Page">
+    Go to **Customers** and select the customer whose invoices you want to view.
+  </Step>
+
+  <Step title="Scroll to Invoices Section">
+    On the customer detail page, scroll down to the **Invoices** table. This shows all invoices for the customer.
+  </Step>
+
+  <Step title="Review Invoice List">
+    The invoice table displays:
+    - **Products**: Which plans are included on the invoice
+    - **Total**: Final amount charged (in the invoice currency)
+    - **Status**: Current payment status (draft, paid, unpaid)
+    - **Created At**: When the invoice was generated
+
+    <Tip>
+    If a discount was applied, you'll see the discount amount shown next to the total in parentheses.
+    </Tip>
+  </Step>
+</Steps>
+
+## Invoice Statuses
+
+Invoices can have several statuses:
+
+- **Draft**: Invoice created but not yet finalized
+- **Open**: Invoice sent to customer, awaiting payment
+- **Paid**: Payment successfully collected
+- **Void**: Invoice canceled and not collectible
+- **Uncollectible**: Payment attempts failed and collection stopped
+
+<Note>
+Status badges in the dashboard use color coding: green for paid, yellow for open/draft, and red for failed states.
+</Note>
+
+## Viewing Invoice Details
+
+<Steps>
+  <Step title="Click an Invoice Row">
+    In the Invoices table, click any invoice to view its details.
+  </Step>
+
+  <Step title="View Line Items (Admin Users)">
+    If you're an admin user, clicking an invoice opens a detail sheet showing:
+    - **Line items**: Individual charges on the invoice
+    - **Product breakdown**: Which features or plans are included
+    - **Discounts applied**: Coupon or promotional discounts
+    - **Tax information**: Applied tax rates
+
+    <Tip>
+    Admin users see additional technical details like Stripe invoice IDs and internal references.
+    </Tip>
+  </Step>
+
+  <Step title="Open Stripe Invoice">
+    Double-click any invoice row (or click once as a non-admin) to open the Stripe-hosted invoice page in a new tab. This shows:
+    - Customer-facing invoice view
+    - Payment link for unpaid invoices
+    - Download PDF option
+    - Complete billing history
+  </Step>
+</Steps>
+
+## Invoice Components
+
+Each invoice can include:
+
+### Base Subscription Charges
+- Recurring plan fees
+- Proration adjustments for plan changes
+- Trial period handling
+
+### Usage-Based Charges
+- Metered feature consumption
+- Per-unit pricing
+- Calculated at the end of billing period
+
+### One-Time Charges
+- Setup fees
+- Add-on purchases
+- Manual charges
+
+### Discounts
+- Coupon codes
+- Promotional credits
+- Customer-specific discounts
+
+<Note>
+All charges are itemized separately on invoices, making it easy for customers to understand what they're paying for.
+</Note>
+
+## Invoice Currency
+
+Invoices are created in the customer's billing currency:
+- Default currency is set at the organization level
+- Individual customers can have different currencies
+- All amounts on an invoice use the same currency
+
+<Tip>
+The invoice currency is displayed next to the total amount (e.g., "100.00 USD").
+</Tip>
+
+## Working with Draft Invoices
+
+Draft invoices are not yet finalized and can still be modified:
+
+- Created when a subscription starts
+- Can be updated before being finalized
+- Won't charge the customer until finalized
+- Useful for reviewing charges before collection
+
+<Steps>
+  <Step title="View Draft Invoice">
+    Draft invoices appear in the invoice list with a "Draft" status badge.
+  </Step>
+
+  <Step title="Access in Stripe">
+    Click the invoice to open it in Stripe, where you can:
+    - Add or remove line items
+    - Apply discounts
+    - Finalize the invoice
+    - Delete the draft if no longer needed
+  </Step>
+</Steps>
+
+## Invoice Links
+
+Each invoice has a hosted URL where customers can:
+- View invoice details
+- Download PDF
+- Pay outstanding invoices
+- Update payment method
+
+<Tip>
+**Quick Access**: Click any invoice in the dashboard to automatically open its hosted URL in a new tab.
+</Tip>
+
+## Understanding Proration
+
+When customers change plans mid-cycle, proration ensures fair billing:
+
+- **Upgrade**: Credit for unused time on old plan, charge for new plan
+- **Downgrade**: Credit applied to next invoice
+- **Immediate invoicing**: Some changes trigger immediate invoice creation
+
+<Note>
+Proration calculations are handled automatically by Stripe and appear as separate line items on invoices.
+</Note>
+
+## Invoice Filters and Search
+
+While invoices are displayed per-customer, you can:
+- Filter customers by those with unpaid invoices
+- Search for specific invoice amounts
+- Sort by creation date or total amount
+
+## Handling Failed Payments
+
+When an invoice payment fails:
+
+1. Status changes to "Unpaid" or "Past Due"
+2. Stripe automatically retries collection based on your settings
+3. Customer may lose access based on your grace period configuration
+4. Admin users can manually retry or void the invoice in Stripe
+
+<Tip>
+Set up webhook handlers to notify customers of failed payments and provide links to update their payment method.
+</Tip>
+
+## Invoice Best Practices
+
+<Tip>
+**Regular Review**: Check unpaid invoices regularly to identify customers with payment issues.
+</Tip>
+
+<Tip>
+**Clear Descriptions**: Use descriptive product names so customers can easily understand what they're being charged for.
+</Tip>
+
+<Tip>
+**Discount Transparency**: When applying discounts, ensure they're clearly shown on invoices so customers see the value they're receiving.
+</Tip>
+
+## Admin Invoice Features
+
+Admin users have additional capabilities:
+- View internal invoice IDs
+- Access Stripe dashboard links
+- See detailed line item breakdowns
+- View invoice metadata and properties
+
+<Note>
+Admin-specific features are indicated with special badges and hover tooltips in the interface.
+</Note>
+
+## Common Invoice Scenarios
+
+### New Subscription
+1. Customer subscribes to a plan
+2. Invoice created with subscription charges
+3. Payment collected immediately or at end of trial
+4. Invoice marked as paid upon successful payment
+
+### Recurring Billing
+1. Billing period ends
+2. New invoice generated with subscription and usage charges
+3. Stripe attempts payment with customer's saved method
+4. Invoice paid or enters retry cycle if payment fails
+
+### Plan Change
+1. Customer changes subscription mid-cycle
+2. Proration invoice created immediately
+3. Charges for new plan, credits for old plan
+4. Next regular invoice resumes normal billing cycle
+
+## Next Steps
+
+- Learn about [customer management](/guides/managing-customers) workflows
+- Explore [analytics](/guides/analytics) to understand usage patterns
+- Set up automated dunning for failed payments
+- Configure invoice email templates in Stripe
+
+<Tip>
+For advanced invoice customization, you can modify invoice templates and add custom fields in your Stripe dashboard settings.
+</Tip>

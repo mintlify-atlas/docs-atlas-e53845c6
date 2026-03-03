@@ -1,0 +1,144 @@
+---
+title: Introduction
+description: Build any pricing model and embed it with a couple lines of code
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="Autumn Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="Autumn Hero Dark"
+/>
+
+## What is Autumn?
+
+Autumn is an open-source layer between Stripe and your application, allowing you to create any pricing model and embed it with a couple lines of code. With Autumn, you can build:
+
+- **Subscriptions** - Traditional recurring billing with plans and tiers
+- **Credit systems & top-ups** - Flexible credit-based models with refills
+- **Usage-based models & overages** - Charge based on actual consumption
+- **Custom plans for large customers** - Enterprise pricing without code changes
+
+All this without having to handle webhooks, upgrades/downgrades, cancellations, or payment failures.
+
+## Why Autumn?
+
+<CardGroup cols={2}>
+  <Card title="Billing Gets Complex Fast" icon="rocket">
+    Beyond payments, you need permission management, metering, usage limits with cron jobs, and handling upgrade, downgrade, cancellation, and failed payment states. Race conditions and edge cases will slow you down.
+  </Card>
+  <Card title="Decouple Billing from App Logic" icon="code-branch">
+    Growing companies iterate on pricing often: raising prices, experimenting with credits, or charging for new features. DB migrations and rebuilding in-app flows shouldn't be required.
+  </Card>
+</CardGroup>
+
+## How It Works
+
+First, create your products and plans on the dashboard. Autumn supports **any** pricing model, including:
+
+<CardGroup cols={2}>
+  <Card title="Usage & Overage" icon="bolt">
+    Set real-time usage limits and choose when they reset. Charge users when they go over.
+  </Card>
+  <Card title="Credits" icon="coins">
+    Users can access monetary or arbitrary credits that multiple features can draw from.
+  </Card>
+  <Card title="Seat-based with Per-Seat Limits" icon="users">
+    Bill customers for their users (or other entities) with individual limits.
+  </Card>
+  <Card title="Pay Upfront" icon="credit-card">
+    Let users purchase a fixed quantity of a feature upfront, which is used over time.
+  </Card>
+</CardGroup>
+
+## Three Core Functions
+
+All your billing logic can be implemented through just 3 functions:
+
+### 1. Attach - Handle All Purchase Flows
+
+One function call for all purchase flows. Returns a Stripe Checkout URL or handles upgrades/downgrades.
+
+```typescript
+const { attach } = useAutumn();
+
+<button
+  onClick={async () => {
+    await attach({ productId: "pro" });
+  }}
+>
+  Upgrade to Pro
+</button>
+```
+
+### 2. Check - Gate Access to Features
+
+Check whether a customer has access to a product, feature, or remaining usage.
+
+```typescript
+const { check } = useAutumn();
+
+const { data } = await check({ featureId: "ai_tokens" });
+
+if (!data.allowed) {
+  alert("AI limit reached");
+}
+```
+
+### 3. Track - Record Usage Events
+
+When a customer uses a usage-based feature, record a usage event.
+
+```typescript
+const { track } = useAutumn();
+
+await track({
+  featureId: "ai_tokens",
+  value: 1312
+});
+```
+
+## Get Started
+
+<CardGroup cols={2}>
+  <Card
+    title="Quickstart"
+    icon="play"
+    href="/quickstart"
+  >
+    Get up and running in minutes with our cloud service or local setup
+  </Card>
+  <Card
+    title="Self-Hosting"
+    icon="server"
+    href="/self-hosting"
+  >
+    Deploy Autumn on your own infrastructure with Docker
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/overview"
+  >
+    Explore the complete API documentation and endpoints
+  </Card>
+  <Card
+    title="Community"
+    icon="discord"
+    href="https://discord.gg/53emPtY9tA"
+  >
+    Join our Discord community for support and discussions
+  </Card>
+</CardGroup>
+
+## Open Source & Community
+
+Autumn is fully open-source and backed by Y Combinator. You can self-host it on your own infrastructure or use our cloud service at [app.useautumn.com](https://app.useautumn.com).
+
+<Note>
+  Need help? Join our [Discord community](https://discord.gg/53emPtY9tA) or email us at hey@useautumn.com
+</Note>

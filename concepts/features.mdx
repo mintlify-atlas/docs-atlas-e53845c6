@@ -1,0 +1,454 @@
+---
+title: Features
+description: Feature flags, usage tracking, and access control in Autumn
+---
+
+## Overview
+
+**Features** are the capabilities or resources in your application that you want to gate, meter, or monetize. Autumn provides a powerful feature system that combines feature flags, usage tracking, and access control.
+
+## Feature Structure
+
+```typescript
+type Feature = {
+  internal_id: string;           // Internal database identifier
+  id: string;                    // Your feature identifier (e.g., "api_calls")
+  org_id: string;
+  env: "test" | "prod";
+  
+  name: string | null;           // Display name
+  type: string;                  // "boolean", "metered", or "credit_system"
+  
+  config: MeteredConfig | CreditSystemConfig;
+  
+  display: {                     // Display formatting
+    singular: string;            // "API call"
+    plural: string;              // "API calls"
+  } | null;
+  
+  archived: boolean;
+  created_at: number;
+  event_names: string[];         // Alternative event names for tracking
+};
+```
+
+## Feature Types
+
+Autumn supports three types of features:
+
+### 1. Boolean Features
+
+Simple on/off feature flags:
+
+```typescript
+{
+  id: "advanced_analytics",
+  name: "Advanced Analytics",
+  type: "boolean",
+  config: {}  // No additional config needed
+}
+```
+
+Check access:
+
+```typescript
+const { check } = useAutumn();
+
+const { data } = await check({ 
+  featureId: "advanced_analytics" 
+});
+
+if (data.allowed) {
+  // Show advanced analytics UI
+}
+```
+
+### 2. Metered Features
+
+Countable resources with usage limits:
+
+```typescript
+type MeteredConfig = {
+  usage_type: "single" | "continuous";
+};
+```
+
+**Single Usage** - Usage counts toward a limit:
+
+```typescript
+{
+  id: "api_calls",
+  name: "API Calls",
+  type: "metered",
+  config: {
+    usage_type: "single"         // Cumulative usage
+  },
+  display: {
+    singular: "API call",
+    plural: "API calls"
+  }
+}
+```
+
+Example flow:
+
+```typescript
+// Customer has 10,000 API calls included
+const { track, check } = useAutumn();
+
+// Before making API call, check allowance
+const { data } = await check({ featureId: "api_calls" });
+
+if (!data.allowed) {
+  throw new Error("API limit reached");
+}
+
+// Make the API call...
+
+// Track usage
+await track({
+  featureId: "api_calls",
+  value: 1
+});
+
+// After 10,000 calls, check returns allowed: false
+```
+
+**Continuous Usage** - For resources that are actively consumed:
+
+```typescript
+{
+  id: "compute_minutes",
+  name: "Compute Minutes",
+  type: "metered",
+  config: {
+    usage_type: "continuous"     // Usage that renews
+  }
+}
+```
+
+Continuous usage is typically for:
+- Seats (team members currently in the account)
+- Storage (currently used disk space)
+- Active connections
+- Running instances
+
+<Note>
+  Continuous usage features can have **prorated pricing** - charges adjust based on how long the resource is used during a billing period.
+</Note>
+
+### 3. Credit Systems
+
+A shared credit pool that multiple features can draw from:
+
+```typescript
+type CreditSystemConfig = {
+  usage_type: "single";          // Always single for credit systems
+  schema: Array<{
+    metered_feature_id: string;  // Feature that consumes credits
+    credit_amount: number;        // Credits consumed per usage
+  }>
+};
+```
+
+Example: AI Credits system
+
+```typescript
+// 1. Define the credit system
+{
+  id: "ai_credits",
+  name: "AI Credits",
+  type: "credit_system",
+  config: {
+    usage_type: "single",
+    schema: [
+      {
+        metered_feature_id: "gpt4_requests",
+        credit_amount: 10        // Each GPT-4 call = 10 credits
+      },
+      {
+        metered_feature_id: "gpt35_requests",
+        credit_amount: 1         // Each GPT-3.5 call = 1 credit
+      },
+      {
+        metered_feature_id: "image_generation",
+        credit_amount: 5         // Each image = 5 credits
+      }
+    ]
+  }
+}
+
+// 2. Define the metered features
+{
+  id: "gpt4_requests",
+  name: "GPT-4 Requests",
+  type: "metered",
+  config: { usage_type: "single" }
+}
+
+// (Repeat for other features...)
+```
+
+Using the credit system:
+
+```typescript
+const { track } = useAutumn();
+
+// Customer makes a GPT-4 request
+await track({
+  featureId: "gpt4_requests",
+  value: 1                       // Deducts 10 ai_credits
+});
+
+// Customer generates an image  
+await track({
+  featureId: "image_generation",
+  value: 1                       // Deducts 5 ai_credits
+});
+```
+
+<Info>
+  Credit systems are perfect for AI/ML platforms where different operations have different costs, but you want to offer a single credit balance to customers.
+</Info>
+
+## Entitlements
+
+Entitlements connect features to products and define the allowance:
+
+```typescript
+type Entitlement = {
+  id: string;
+  internal_feature_id: string;
+  internal_product_id: string;
+  feature_id: string;
+  
+  // Allowance configuration
+  allowance_type: "boolean" | "metered";
+  allowance: number | null;      // Usage limit (null = unlimited)
+  
+  // Reset interval (for metered features)
+  interval: "day" | "week" | "month" | "year" | "one_off" | null;
+  interval_count: number;        // e.g., interval_count: 2, interval: "week" = every 2 weeks
+  
+  // Advanced features
+  usage_limit: number | null;    // Hard limit (stops access)
+  carry_from_previous: boolean;  // Rollover unused allowance
+  entity_feature_id: string | null;  // For entity-scoped features
+  rollover: RolloverConfig | null;   // Rollover configuration
+  
+  is_custom: boolean;
+  created_at: number;
+};
+```
+
+### Entitlement Examples
+
+**Boolean entitlement** - Feature access flag:
+
+```typescript
+// Pro plan includes "advanced_analytics" feature
+{
+  feature_id: "advanced_analytics",
+  internal_product_id: "prod_pro_plan",
+  allowance_type: "boolean",
+  allowance: null,               // Not applicable for boolean
+  interval: null
+}
+```
+
+**Metered entitlement** - Usage allowance:
+
+```typescript
+// Pro plan includes 100,000 API calls per month
+{
+  feature_id: "api_calls",
+  internal_product_id: "prod_pro_plan",
+  allowance_type: "metered",
+  allowance: 100000,
+  interval: "month",
+  interval_count: 1
+}
+```
+
+**Unlimited entitlement**:
+
+```typescript
+// Enterprise plan has unlimited API calls
+{
+  feature_id: "api_calls",
+  internal_product_id: "prod_enterprise",
+  allowance_type: "metered",
+  allowance: null,               // null = unlimited
+  interval: "month",
+  interval_count: 1
+}
+```
+
+## Checking Feature Access
+
+The `/check` endpoint tells you if a customer can use a feature:
+
+```typescript
+const { check } = useAutumn();
+
+const { data } = await check({ 
+  featureId: "api_calls" 
+});
+
+// Response
+{
+  allowed: true,
+  usage: 5420,                   // Current usage this period
+  allowance: 100000,             // Total allowance
+  remaining: 94580,              // Remaining allowance
+  reset_at: 1704153600000       // When usage resets (Unix timestamp)
+}
+```
+
+When `allowed: false`, the response includes a reason:
+
+```typescript
+{
+  allowed: false,
+  usage: 100000,
+  allowance: 100000,
+  remaining: 0,
+  reason: "limit_reached",       // or "no_access", "feature_not_found"
+  reset_at: 1704153600000
+}
+```
+
+## Tracking Usage
+
+Record usage events with the `/track` endpoint:
+
+```typescript
+const { track } = useAutumn();
+
+// Track a single unit
+await track({
+  featureId: "api_calls",
+  value: 1
+});
+
+// Track multiple units
+await track({
+  featureId: "tokens_processed",
+  value: 1523                    // Processed 1,523 tokens
+});
+
+// Track with entity
+await track({
+  featureId: "storage_gb",
+  entityId: "workspace_123",
+  value: 5.2                     // 5.2 GB used by this workspace
+});
+```
+
+<Tip>
+  Always call `/check` before performing the action and `/track` after successfully completing it. This ensures you don't charge for operations that fail.
+</Tip>
+
+## Usage Reset Intervals
+
+Metered features reset based on their entitlement's interval:
+
+| Interval | Reset Behavior | Example |
+|----------|----------------|----------|
+| `day` | Daily at midnight UTC | Daily API quota |
+| `week` | Weekly on Monday 00:00 UTC | Weekly report generation |
+| `month` | Monthly on the 1st | Monthly API calls |
+| `year` | Yearly on Jan 1st | Annual storage quota |
+| `one_off` | Never resets | One-time credit purchase |
+
+Custom intervals using `interval_count`:
+
+```typescript
+{
+  interval: "week",
+  interval_count: 2              // Resets every 2 weeks
+}
+```
+
+## Rollover and Carry Forward
+
+Allow customers to keep unused allowance:
+
+```typescript
+{
+  feature_id: "api_calls",
+  allowance: 10000,
+  interval: "month",
+  carry_from_previous: true,     // Enable rollover
+  rollover: {
+    max_rollover: 5000,          // Max 5,000 can carry over
+    expiry_months: 3             // Rolled credits expire after 3 months
+  }
+}
+```
+
+Example:
+- Month 1: Allowance = 10,000, Used = 6,000, Remaining = 4,000
+- Month 2: Allowance = 10,000 + 4,000 (capped at 5,000) = 15,000
+
+## Feature Display
+
+The `display` field controls how usage is shown to customers:
+
+```typescript
+{
+  id: "api_calls",
+  display: {
+    singular: "API call",
+    plural: "API calls"
+  }
+}
+
+// Rendered as: "5,420 API calls remaining" or "1 API call remaining"
+```
+
+## Feature Validation
+
+Feature IDs must match this pattern:
+
+```typescript
+// Valid feature IDs
+"api_calls"        ✓
+"gpt-4-requests"   ✓
+"storage_GB"       ✓
+"feature123"       ✓
+
+// Invalid feature IDs
+"api calls"        ✗ (spaces not allowed)
+"feature@home"     ✗ (special chars not allowed)
+"my.feature"       ✗ (dots not allowed)
+```
+
+<Note>
+  Feature IDs can only contain alphanumeric characters, hyphens, and underscores.
+</Note>
+
+## Event Names
+
+Alias feature IDs with alternative event names:
+
+```typescript
+{
+  id: "api_calls",
+  event_names: ["api.request", "http.call", "api_call"]
+}
+```
+
+All of these work:
+
+```typescript
+await track({ featureId: "api_calls", value: 1 });
+await track({ featureId: "api.request", value: 1 });
+await track({ featureId: "http.call", value: 1 });
+```
+
+## Next Steps
+
+- Learn about [Pricing Models](/concepts/pricing-models) to monetize features
+- Explore [Products and Plans](/concepts/products-and-plans) to bundle features
+- Read the [API Reference](/api) for detailed `/check` and `/track` usage

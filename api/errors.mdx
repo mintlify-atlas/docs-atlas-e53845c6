@@ -1,0 +1,379 @@
+---
+title: Error Codes
+description: Complete reference of Autumn API error codes and handling
+---
+
+## Error Response Format
+
+All Autumn API errors follow a consistent JSON structure:
+
+```json
+{
+  "message": "Human-readable error description",
+  "code": "machine_readable_error_code",
+  "env": "sandbox"
+}
+```
+
+### Response Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `message` | string | Human-readable error description |
+| `code` | string | Machine-readable error code for programmatic handling |
+| `env` | string | Environment where the error occurred (`sandbox` or `live`) |
+
+## HTTP Status Codes
+
+Autumn uses standard HTTP status codes to indicate the success or failure of requests:
+
+| Status Code | Meaning | Description |
+|-------------|---------|-------------|
+| `200` | OK | Request succeeded |
+| `400` | Bad Request | Invalid request parameters or validation error |
+| `401` | Unauthorized | Authentication failed or missing |
+| `403` | Forbidden | Authenticated but not authorized |
+| `404` | Not Found | Resource doesn't exist |
+| `500` | Internal Server Error | Something went wrong on Autumn's servers |
+
+## Error Categories
+
+### Authentication Errors (401)
+
+Errors related to API authentication and authorization.
+
+| Code | Description |
+|------|-------------|
+| `no_secret_key` | Authorization header missing |
+| `invalid_secret_key` | API key is invalid or malformed |
+| `no_auth_header` | No authentication header provided |
+| `invalid_auth_header` | Authorization header format is incorrect |
+| `failed_to_verify_secret_key` | Could not verify the secret key |
+| `failed_to_fetch_key_from_autumn` | Failed to retrieve key data |
+| `no_publishable_key` | Publishable key missing |
+| `invalid_publishable_key` | Publishable key is invalid |
+| `get_org_from_publishable_key_failed` | Could not fetch organization from publishable key |
+| `endpoint_not_public` | Endpoint not accessible with publishable key |
+| `failed_to_verify_publishable_key` | Could not verify the publishable key |
+| `invalid_api_version` | API version header is invalid |
+
+<CodeGroup>
+```json Example: Missing Secret Key
+{
+  "message": "Secret key not found in Authorization header",
+  "code": "no_secret_key",
+  "env": "sandbox"
+}
+```
+
+```json Example: Invalid API Key
+{
+  "message": "Invalid secret key: am_sk_test_abc***",
+  "code": "invalid_secret_key",
+  "env": "sandbox"
+}
+```
+
+```json Example: Endpoint Not Public
+{
+  "message": "Endpoint /v1/invoices not accessible via publishable key. Please try with a secret key instead.",
+  "code": "endpoint_not_public",
+  "env": "sandbox"
+}
+```
+</CodeGroup>
+
+### Validation Errors (400)
+
+Errors related to invalid input parameters or request validation.
+
+| Code | Description |
+|------|-------------|
+| `invalid_inputs` | Request parameters failed validation |
+| `invalid_request` | Malformed request |
+| `invalid_expand` | Invalid expand parameter |
+| `invalid_options` | Invalid request options |
+
+```json Example: Validation Error
+{
+  "message": "email: must be a valid email address",
+  "code": "invalid_inputs",
+  "env": "sandbox"
+}
+```
+
+### Idempotency Errors (400/409)
+
+Errors related to idempotent request handling.
+
+| Code | Description |
+|------|-------------|
+| `idempotency_key_already_exists` | Idempotency key already used with different parameters |
+| `idempotency_key_not_found` | Idempotency key not found |
+| `duplicate_idempotency_key` | Duplicate idempotency key |
+
+### Organization Errors (404/400)
+
+Errors related to organization operations.
+
+| Code | Description |
+|------|-------------|
+| `org_not_found` | Organization not found |
+| `org_has_customers` | Cannot delete organization with existing customers |
+
+### Customer Errors (400/404)
+
+Errors related to customer operations.
+
+| Code | Description |
+|------|-------------|
+| `customer_not_found` | Customer not found |
+| `customers_not_found` | No customers found |
+| `invalid_customer` | Invalid customer data |
+| `create_customer_failed` | Failed to create customer |
+| `duplicate_customer_id` | Customer ID already exists |
+| `duplicate_customer_email` | Customer email already exists |
+| `customer_already_has_product` | Customer already subscribed to this product |
+| `customer_has_no_payment_method` | Customer has no payment method on file |
+| `customer_has_no_base_product` | Customer has no base product |
+| `attach_product_to_customer_failed` | Failed to attach product to customer |
+| `customer_entitlement_not_found` | Customer entitlement not found |
+| `multiple_customers_found` | Multiple customers found with same identifier |
+| `invalid_update_customer_params` | Invalid parameters for customer update |
+
+### Product Errors (404/400)
+
+Errors related to product and pricing operations.
+
+| Code | Description |
+|------|-------------|
+| `product_not_found` | Product not found |
+| `price_not_found` | Price not found |
+| `create_price_failed` | Failed to create price |
+| `invalid_price` | Invalid price data |
+| `invalid_price_id` | Invalid price ID |
+| `invalid_price_options` | Invalid price options |
+| `invalid_price_config` | Invalid price configuration |
+| `cus_price_not_found` | Customer price not found |
+| `cus_product_not_found` | Customer product not found |
+| `no_active_cus_products` | No active customer products |
+| `get_cus_products_failed` | Failed to retrieve customer products |
+| `get_cus_price_failed` | Failed to retrieve customer price |
+| `duplicate_subscription_id` | Subscription ID already exists |
+
+### Feature Errors (400/404)
+
+Errors related to feature flag and entitlement operations.
+
+| Code | Description |
+|------|-------------|
+| `feature_not_found` | Feature not found |
+| `invalid_feature` | Invalid feature data |
+| `duplicate_feature_id` | Feature ID already exists |
+| `invalid_event_name` | Invalid event name |
+| `feature_limit_reached` | Feature limit reached |
+| `invalid_entitlement` | Invalid entitlement data |
+| `create_entitlement_failed` | Failed to create entitlement |
+| `delete_entitlement_failed` | Failed to delete entitlement |
+| `insufficient_balance` | Insufficient balance for operation |
+
+### Stripe Errors (400/500)
+
+Errors related to Stripe payment processing.
+
+| Code | Description |
+|------|-------------|
+| `stripe_error` | General Stripe error |
+| `stripe_key_invalid` | Stripe API key is invalid |
+| `stripe_key_not_found` | Stripe key not configured |
+| `stripe_config_not_found` | Stripe configuration not found |
+| `stripe_delete_customer_failed` | Failed to delete Stripe customer |
+| `stripe_create_customer_failed` | Failed to create Stripe customer |
+| `stripe_create_product_failed` | Failed to create Stripe product |
+| `stripe_cancel_subscription_failed` | Failed to cancel Stripe subscription |
+| `stripe_get_payment_method_failed` | Failed to retrieve payment method |
+| `stripe_card_declined` | Card was declined |
+| `stripe_update_subscription_failed` | Failed to update subscription |
+| `stripe_cancel_subscription_schedule_failed` | Failed to cancel subscription schedule |
+| `stripe_create_subscription_failed` | Failed to create subscription |
+| `create_stripe_product_failed` | Failed to create Stripe product |
+| `delete_stripe_product_failed` | Failed to delete Stripe product |
+| `create_stripe_subscription_failed` | Failed to create Stripe subscription |
+
+```json Example: Stripe Error
+{
+  "message": "(Stripe Error) Your card was declined.",
+  "code": "stripe_error",
+  "env": "live"
+}
+```
+
+### Invoice Errors (400/500)
+
+Errors related to invoice operations.
+
+| Code | Description |
+|------|-------------|
+| `create_invoice_failed` | Failed to create invoice |
+| `invoice_payment_failed` | Failed to process invoice payment |
+
+### Event Errors (400/409)
+
+Errors related to event tracking.
+
+| Code | Description |
+|------|-------------|
+| `invalid_event` | Invalid event data |
+| `create_event_failed` | Failed to create event |
+| `duplicate_event` | Duplicate event |
+
+### Rewards & Referral Errors (400/404)
+
+Errors related to rewards and referral programs.
+
+| Code | Description |
+|------|-------------|
+| `invalid_reward` | Invalid reward data |
+| `reward_not_found` | Reward not found |
+| `reward_program_not_found` | Reward program not found |
+| `promo_code_already_exists_in_stripe` | Promo code already exists in Stripe |
+| `referral_code_max_redemptions_reached` | Referral code max redemptions reached |
+| `referral_not_found` | Referral not found |
+| `referral_code_not_found` | Referral code not found |
+| `customer_already_redeemed_referral_code` | Customer already redeemed this referral code |
+| `customer_cannot_redeem_own_code` | Customer cannot redeem their own referral code |
+| `insert_reward_program_failed` | Failed to insert reward program |
+| `insert_referral_code_failed` | Failed to insert referral code |
+| `update_reward_redemption_failed` | Failed to update reward redemption |
+| `reward_redemption_not_found` | Reward redemption not found |
+| `insert_reward_redemption_failed` | Failed to insert reward redemption |
+
+### Entity Errors (400/404)
+
+Errors related to entity operations.
+
+| Code | Description |
+|------|-------------|
+| `entity_not_found` | Entity not found |
+| `entity_already_deleted` | Entity already deleted |
+| `entity_id_required` | Entity ID is required |
+| `entity_balance_not_found` | Entity balance not found |
+| `invalid_product_item` | Invalid product item |
+
+### Internal Errors (500)
+
+Errors indicating server-side issues.
+
+| Code | Description |
+|------|-------------|
+| `internal_error` | Internal server error |
+| `supabase_not_found` | Supabase configuration not found |
+| `tinybird_disabled` | Tinybird analytics disabled |
+| `payment_method_not_found` | Payment method not found |
+
+```json Example: Internal Error
+{
+  "message": "An unexpected error occurred",
+  "code": "internal_error",
+  "env": "sandbox"
+}
+```
+
+### Vercel Integration Errors (400/404)
+
+Errors related to Vercel marketplace integration.
+
+| Code | Description |
+|------|-------------|
+| `vercel_subscription_already_exists` | Vercel subscription already exists |
+| `vercel_subscription_not_found` | Vercel subscription not found |
+| `vercel_resource_not_found` | Vercel resource not found |
+
+### Migration Errors (400/409)
+
+Errors related to data migration operations.
+
+| Code | Description |
+|------|-------------|
+| `insert_migration_job_failed` | Failed to create migration job |
+| `insert_migration_error_failed` | Failed to log migration error |
+| `migration_job_not_found` | Migration job not found |
+| `migration_already_in_progress` | Migration already in progress |
+
+## Error Handling Best Practices
+
+<AccordionGroup>
+  <Accordion title="Check HTTP Status Codes First">
+    Always check the HTTP status code before parsing the error response. This gives you a quick indication of the error category:
+    - `4xx` - Client errors (fix your request)
+    - `5xx` - Server errors (retry or contact support)
+  </Accordion>
+
+  <Accordion title="Use Error Codes for Logic">
+    Use the `code` field for programmatic error handling, not the `message` field. Error messages may change, but codes remain stable:
+
+    ```javascript
+    if (error.code === 'customer_not_found') {
+      // Handle missing customer
+    } else if (error.code === 'stripe_card_declined') {
+      // Handle payment failure
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Implement Retry Logic">
+    For `5xx` errors and certain `4xx` errors (like rate limiting), implement exponential backoff retry logic:
+
+    ```javascript
+    async function makeRequestWithRetry(url, options, maxRetries = 3) {
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          const response = await fetch(url, options);
+          if (response.ok) return response;
+          
+          if (response.status >= 500 && i < maxRetries - 1) {
+            await new Promise(resolve => 
+              setTimeout(resolve, Math.pow(2, i) * 1000)
+            );
+            continue;
+          }
+          
+          throw new Error(await response.json());
+        } catch (error) {
+          if (i === maxRetries - 1) throw error;
+        }
+      }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Log Errors for Debugging">
+    Always log error responses (including the full response body) for debugging purposes, but ensure you don't log sensitive data like full API keys.
+  </Accordion>
+
+  <Accordion title="Handle Validation Errors Gracefully">
+    For validation errors (`invalid_inputs`), parse the error message to provide specific feedback to users:
+
+    ```javascript
+    if (error.code === 'invalid_inputs') {
+      // Parse error.message to show field-specific errors
+      // e.g., "email: must be a valid email address"
+      const field = error.message.split(':')[0];
+      const issue = error.message.split(':')[1];
+      showFieldError(field, issue);
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+**Never expose detailed error messages to end users.** Error messages may contain sensitive information. Instead, show user-friendly messages and log the full error details for debugging.
+</Warning>
+
+## Contact Support
+
+If you encounter persistent errors or need help:
+
+- Check the [Autumn documentation](https://docs.autumn.example)
+- Contact support with the error code and request ID
+- Include relevant logs (without sensitive data)

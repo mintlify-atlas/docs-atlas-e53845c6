@@ -1,0 +1,116 @@
+---
+title: API Overview
+description: Learn about Autumn's REST API, base URL, and versioning
+---
+
+## Base URL
+
+All API requests should be made to:
+
+```
+http://localhost:8080
+```
+
+For production deployments, replace `localhost:8080` with your deployed API URL configured via the `BETTER_AUTH_URL` environment variable.
+
+## API Versioning
+
+Autumn supports multiple API versioning strategies to ensure backward compatibility and smooth migrations.
+
+### Version Resolution Order
+
+The API version is determined in the following priority order:
+
+1. **`x-api-version` Header** - Explicitly specify the version in your request
+2. **Organization Creation Date** - Automatically calculated from when your organization was created
+3. **Default Version** - Falls back to `v0.2` if no organization is found
+
+### Supported Version Formats
+
+You can specify API versions using any of these formats:
+
+- **CalVer** (Calendar Versioning): `YYYY-MM-DD` format
+  - Example: `2025-04-17`
+- **Legacy Float**: `X.X` format
+  - Example: `1.1`
+- **SemVer** (Semantic Versioning): `X.Y.Z` format
+  - Example: `1.1.0`
+
+### Example Request
+
+```bash
+curl https://api.autumn.example/v1/customers \
+  -H "Authorization: Bearer am_sk_test_..." \
+  -H "x-api-version: 2025-04-17"
+```
+
+## Request Format
+
+All API requests must:
+
+- Use HTTPS in production
+- Include proper authentication headers (see [Authentication](/api/authentication))
+- Send JSON payloads with `Content-Type: application/json` for POST/PUT/PATCH requests
+- Include API version header when needed
+
+### Common Headers
+
+| Header | Required | Description |
+|--------|----------|-------------|
+| `Authorization` | Yes | Bearer token with your API key |
+| `Content-Type` | Conditional | Required for requests with body (`application/json`) |
+| `x-api-version` | No | Override default API version |
+| `idempotency-key` | No | Unique key for idempotent requests |
+| `x-request-id` | No | Custom request ID for tracking |
+| `x-client-type` | No | Client type identifier (e.g., `dashboard`) |
+
+## Response Format
+
+All API responses are returned in JSON format with appropriate HTTP status codes.
+
+### Success Response
+
+```json
+{
+  "id": "cus_123",
+  "email": "user@example.com",
+  "created_at": "2025-03-03T00:00:00Z"
+}
+```
+
+### Error Response
+
+See [Error Codes](/api/errors) for detailed information about error handling.
+
+## Rate Limiting
+
+API requests are subject to rate limiting to ensure service quality. Rate limit details are included in response headers.
+
+## Idempotency
+
+Autumn supports idempotent requests using the `idempotency-key` header. This ensures that retrying a request with the same key won't create duplicate resources.
+
+```bash
+curl https://api.autumn.example/v1/customers \
+  -H "Authorization: Bearer am_sk_test_..." \
+  -H "idempotency-key: unique-key-123" \
+  -H "Content-Type: application/json" \
+  -d '{"email": "user@example.com"}'
+```
+
+## Pagination
+
+List endpoints support pagination using query parameters:
+
+- `limit` - Number of results per page (default varies by endpoint)
+- `offset` - Number of results to skip
+
+## Field Expansion
+
+Some endpoints support expanding related objects using the `expand` query parameter to reduce the number of API calls needed.
+
+Example:
+```bash
+curl "https://api.autumn.example/v1/customers/cus_123?expand=products" \
+  -H "Authorization: Bearer am_sk_test_..."
+```

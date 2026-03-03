@@ -1,0 +1,453 @@
+---
+title: "Next.js Adapter"
+description: "Integrate Autumn with Next.js App Router"
+icon: "n"
+---
+
+## Overview
+
+The Next.js adapter enables seamless integration between Autumn and Next.js applications using the App Router. It provides a clean API for handling Autumn requests in your Next.js route handlers.
+
+## Installation
+
+Install the Autumn JS SDK which includes the Next.js adapter:
+
+```bash
+npm install autumn-js
+```
+
+## Quick Start
+
+Create a catch-all route handler in your Next.js app:
+
+```typescript app/api/autumn/[...autumn]/route.ts
+import { nextAutumnHandler } from "autumn-js/adapters";
+import { auth } from "@/lib/auth";
+
+const handler = nextAutumnHandler({
+  identify: async (request) => {
+    // Get the authenticated user
+    const session = await auth();
+    
+    if (!session?.user) return null;
+    
+    return {
+      customerId: session.user.id,
+      customerData: {
+        name: session.user.name,
+        email: session.user.email,
+      },
+    };
+  },
+  secretKey: process.env.AUTUMN_SECRET_KEY,
+});
+
+export const { GET, POST, DELETE } = handler;
+```
+
+## Configuration
+
+The `nextAutumnHandler` accepts the following options:
+
+### Options
+
+<ParamField path="identify" type="(request: Request) => AuthResult" required>
+  Function to identify the customer from the Next.js request. Return `null` for unauthenticated requests.
+  
+  **Returns:** `{ customerId: string; customerData?: { name?: string; email?: string; ... } }` or `null`
+</ParamField>
+
+<ParamField path="secretKey" type="string" default="process.env.AUTUMN_SECRET_KEY">
+  Your Autumn API secret key. Defaults to the `AUTUMN_SECRET_KEY` environment variable.
+</ParamField>
+
+<ParamField path="autumnURL" type="string" default="https://api.useautumn.com/v1">
+  The Autumn API base URL. Only change this if you're self-hosting Autumn.
+</ParamField>
+
+<ParamField path="pathPrefix" type="string" default="/api/autumn">
+  The path prefix for all Autumn routes. Should match your route file location.
+</ParamField>
+
+## Route Handler Structure
+
+The adapter returns an object with HTTP method handlers that you can export:
+
+```typescript
+const handler = nextAutumnHandler({ /* options */ });
+
+// Export the methods you need
+export const { GET, POST, DELETE } = handler;
+```
+
+Supported methods:
+- `GET` - For read operations
+- `POST` - For create/update operations
+- `DELETE` - For delete operations
+
+## Integration with Next-Auth
+
+### Using Next-Auth v5 (Auth.js)
+
+```typescript app/api/autumn/[...autumn]/route.ts
+import { nextAutumnHandler } from "autumn-js/adapters";
+import { auth } from "@/auth";
+
+const handler = nextAutumnHandler({
+  identify: async (request) => {
+    const session = await auth();
+    
+    if (!session?.user) return null;
+    
+    return {
+      customerId: session.user.id,
+      customerData: {
+        name: session.user.name ?? undefined,
+        email: session.user.email ?? undefined,
+      },
+    };
+  },
+});
+
+export const { GET, POST, DELETE } = handler;
+```
+
+### Using Next-Auth v4
+
+```typescript app/api/autumn/[...autumn]/route.ts
+import { nextAutumnHandler } from "autumn-js/adapters";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+
+const handler = nextAutumnHandler({
+  identify: async (request) => {
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user) return null;
+    
+    return {
+      customerId: session.user.id,
+      customerData: {
+        name: session.user.name,
+        email: session.user.email,
+      },
+    };
+  },
+});
+
+export const { GET, POST, DELETE } = handler;
+```
+
+## Integration with Clerk
+
+```typescript app/api/autumn/[...autumn]/route.ts
+import { nextAutumnHandler } from "autumn-js/adapters";
+import { auth } from "@clerk/nextjs/server";
+
+const handler = nextAutumnHandler({
+  identify: async (request) => {
+    const { userId } = await auth();
+    
+    if (!userId) return null;
+    
+    return {
+      customerId: userId,
+    };
+  },
+});
+
+export const { GET, POST, DELETE } = handler;
+```
+
+## Integration with Custom JWT Auth
+
+```typescript app/api/autumn/[...autumn]/route.ts
+import { nextAutumnHandler } from "autumn-js/adapters";
+import { verify } from "jsonwebtoken";
+
+const handler = nextAutumnHandler({
+  identify: async (request) => {
+    const authHeader = request.headers.get("authorization");
+    
+    if (!authHeader?.startsWith("Bearer ")) return null;
+    
+    const token = authHeader.substring(7);
+    
+    try {
+      const payload = verify(token, process.env.JWT_SECRET!) as {
+        sub: string;
+        email: string;
+        name: string;
+      };
+      
+      return {
+        customerId: payload.sub,
+        customerData: {
+          email: payload.email,
+          name: payload.name,
+        },
+      };
+    } catch {
+      return null;
+    }
+  },
+});
+
+export const { GET, POST, DELETE } = handler;
+```
+
+## Integration with Cookies
+
+```typescript app/api/autumn/[...autumn]/route.ts
+import { nextAutumnHandler } from "autumn-js/adapters";
+import { cookies } from "next/headers";
+import { getUser } from "@/lib/session";
+
+const handler = nextAutumnHandler({
+  identify: async (request) => {
+    const cookieStore = await cookies();
+    const sessionId = cookieStore.get("session")?.value;
+    
+    if (!sessionId) return null;
+    
+    const user = await getUser(sessionId);
+    
+    return user
+      ? {
+          customerId: user.id,
+          customerData: {
+            name: user.name,
+            email: user.email,
+          },
+        }
+      : null;
+  },
+});
+
+export const { GET, POST, DELETE } = handler;
+```
+
+## Available Routes
+
+Once configured with the catch-all route `[...autumn]`, the following endpoints are automatically available:
+
+### Customer Routes
+
+- `POST /api/autumn/getOrCreateCustomer` - Get or create customer
+
+### Billing Routes
+
+- `POST /api/autumn/attach` - Attach a plan to customer
+- `POST /api/autumn/previewAttach` - Preview plan attachment
+- `POST /api/autumn/updateSubscription` - Update subscription
+- `POST /api/autumn/previewUpdateSubscription` - Preview subscription update
+- `POST /api/autumn/openCustomerPortal` - Open customer billing portal
+- `POST /api/autumn/multiAttach` - Attach multiple plans
+- `POST /api/autumn/previewMultiAttach` - Preview multiple plan attachments
+- `POST /api/autumn/setupPayment` - Setup payment method
+
+### Plan Routes
+
+- `POST /api/autumn/listPlans` - List available plans
+
+### Event Routes
+
+- `POST /api/autumn/listEvents` - List customer events
+- `POST /api/autumn/aggregateEvents` - Aggregate event data
+
+### Referral Routes
+
+- `POST /api/autumn/createReferralCode` - Create referral code
+- `POST /api/autumn/redeemReferralCode` - Redeem referral code
+
+## File Structure
+
+Place your Autumn handler in a catch-all route:
+
+```
+app/
+└── api/
+    └── autumn/
+        └── [...autumn]/
+            └── route.ts
+```
+
+This structure captures all requests under `/api/autumn/*`.
+
+## How It Works
+
+The adapter:
+
+1. **Receives requests** to your catch-all route
+2. **Parses request method and body** from the Next.js Request object
+3. **Calls your identify function** to determine customer identity
+4. **Routes to the appropriate handler** based on the URL path
+5. **Returns NextResponse** with JSON body and proper status codes
+
+## TypeScript Support
+
+The adapter is fully typed:
+
+```typescript
+import type { NextAutumnHandlerOptions } from "autumn-js/adapters";
+
+const options: NextAutumnHandlerOptions = {
+  identify: async (request) => {
+    // request is typed as Request
+    const auth = request.headers.get("authorization");
+    // ...
+  },
+  secretKey: process.env.AUTUMN_SECRET_KEY,
+};
+```
+
+## Error Handling
+
+The adapter automatically handles errors:
+
+- **401 Unauthorized** - When `identify` returns `null` for protected routes
+- **404 Not Found** - When the route doesn't exist
+- **400 Bad Request** - For invalid request bodies
+- **500 Internal Server Error** - For SDK errors
+
+All errors return JSON:
+
+```json
+{
+  "code": "error_code",
+  "message": "Human-readable error message"
+}
+```
+
+## Custom Path Prefix
+
+If you place your route in a different location, update the `pathPrefix`:
+
+```typescript app/api/billing/[...billing]/route.ts
+const handler = nextAutumnHandler({
+  identify: async (request) => {/* ... */},
+  pathPrefix: "/api/billing",
+});
+
+export const { GET, POST, DELETE } = handler;
+```
+
+## Environment Variables
+
+Create a `.env.local` file:
+
+```bash
+# Required: Your Autumn secret key
+AUTUMN_SECRET_KEY=sk_...
+
+# Optional: Custom Autumn API URL (for self-hosted instances)
+AUTUMN_API_URL=https://api.useautumn.com/v1
+```
+
+## Middleware Integration
+
+You can use Next.js middleware to protect your Autumn routes:
+
+```typescript middleware.ts
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+
+export function middleware(request: NextRequest) {
+  // Your auth logic here
+  const token = request.cookies.get("session")?.value;
+  
+  if (!token && request.nextUrl.pathname.startsWith("/api/autumn")) {
+    return NextResponse.json(
+      { code: "unauthorized", message: "Authentication required" },
+      { status: 401 }
+    );
+  }
+  
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: "/api/autumn/:path*",
+};
+```
+
+## Complete Example
+
+Here's a complete setup with Next-Auth:
+
+```typescript app/api/autumn/[...autumn]/route.ts
+import { nextAutumnHandler } from "autumn-js/adapters";
+import { auth } from "@/auth";
+
+const handler = nextAutumnHandler({
+  identify: async (request) => {
+    const session = await auth();
+    
+    if (!session?.user?.id) return null;
+    
+    return {
+      customerId: session.user.id,
+      customerData: {
+        name: session.user.name ?? undefined,
+        email: session.user.email ?? undefined,
+      },
+    };
+  },
+  secretKey: process.env.AUTUMN_SECRET_KEY,
+  autumnURL: process.env.AUTUMN_API_URL,
+});
+
+// Export all supported methods
+export const { GET, POST, DELETE } = handler;
+```
+
+```typescript .env.local
+AUTUMN_SECRET_KEY=sk_test_...
+AUTUMN_API_URL=https://api.useautumn.com/v1
+```
+
+## Server Components
+
+Since route handlers run on the server, you can safely use server-only code:
+
+```typescript
+import { nextAutumnHandler } from "autumn-js/adapters";
+import { db } from "@/lib/db";
+import "server-only";
+
+const handler = nextAutumnHandler({
+  identify: async (request) => {
+    // Direct database access is safe here
+    const session = await db.session.findUnique({/* ... */});
+    
+    return session
+      ? {
+          customerId: session.userId,
+          customerData: {
+            name: session.user.name,
+            email: session.user.email,
+          },
+        }
+      : null;
+  },
+});
+
+export const { GET, POST, DELETE } = handler;
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Better Auth Integration" icon="shield" href="/sdks/adapters/better-auth">
+    Use Autumn with Better Auth for authentication
+  </Card>
+  <Card title="React Hooks" icon="react" href="/sdks/javascript/react-hooks">
+    Call Autumn endpoints from your React components
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore all available API endpoints
+  </Card>
+  <Card title="Billing Integration" icon="credit-card" href="/integration/attach">
+    Learn about attaching plans and billing
+  </Card>
+</CardGroup>

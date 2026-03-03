@@ -1,0 +1,316 @@
+---
+title: Analytics & Reporting
+description: Learn how to track usage, analyze customer behavior, and generate insights with Autumn's analytics features
+---
+
+Autumn's analytics dashboard provides real-time insights into how customers are using your application. Track feature usage, analyze trends, and understand customer behavior patterns.
+
+## Accessing Analytics
+
+There are two ways to access analytics:
+
+1. **Global Analytics**: Navigate to the **Analytics** tab in the main sidebar to see organization-wide usage
+2. **Customer Analytics**: View customer-specific usage from any customer detail page
+
+<Note>
+Analytics requires ClickHouse to be enabled in your organization. Usage events are tracked via the Autumn SDK or API.
+</Note>
+
+## Understanding the Analytics View
+
+The analytics page is divided into two main sections:
+
+### Usage Chart
+Visual representation of events over time:
+- Bar chart showing event volume by date
+- Customizable time intervals (day, week, month)
+- Group by properties for segmented analysis
+- Filter by event name or feature
+
+### Events Table
+Raw event data with detailed information:
+- Event names and timestamps
+- Customer IDs and properties
+- Custom event metadata
+- Pagination for large datasets
+
+## Filtering Analytics Data
+
+<Steps>
+  <Step title="Select Time Range">
+    Use the interval dropdown to choose your analysis period:
+    - Last 7 days
+    - Last 30 days
+    - Last 90 days
+    - Custom date range
+
+    <Tip>
+    Start with a 30-day view to identify overall trends, then narrow down to specific periods for detailed analysis.
+    </Tip>
+  </Step>
+
+  <Step title="Choose Events to Display">
+    Click the event dropdown to select which events to analyze:
+    - Select specific events by name
+    - Choose feature-related events
+    - View all events (may be limited for performance)
+
+    <Note>
+    If no events are selected, the chart will be empty. Select at least one event to see data.
+    </Note>
+  </Step>
+
+  <Step title="Set Bin Size">
+    Control how data is grouped over time:
+    - **Day**: Show daily usage patterns
+    - **Week**: Identify weekly trends
+    - **Month**: Track monthly growth
+    - **Hour**: Analyze intraday patterns
+
+    Smaller bin sizes provide more granular detail but may show more noise.
+  </Step>
+
+  <Step title="Apply Grouping (Optional)">
+    Group events by custom properties to segment your analysis:
+    - Customer ID: See per-customer usage
+    - Custom properties: Analyze by user role, plan type, region, etc.
+    - Feature IDs: Compare usage across features
+
+    <Tip>
+    Grouping creates separate bars/lines for each unique value, making it easy to compare segments.
+    </Tip>
+  </Step>
+</Steps>
+
+## Using Group By for Segmentation
+
+Grouping reveals insights by breaking down events by dimensions:
+
+<Steps>
+  <Step title="Select Group By Property">
+    Click the **Group By** dropdown to choose a property:
+    - Properties are extracted from your event data
+    - Common properties include: customer_id, plan, region, device_type
+    - Only properties that exist in your events are available
+  </Step>
+
+  <Step title="View Grouped Chart">
+    The usage chart now shows separate bars for each group:
+    - Different colors represent different values
+    - Legend shows all groups
+    - Hover over bars to see specific values
+
+    <Note>
+    If there are too many unique values (more than 10), the chart shows only the top 10 by volume, and a warning message appears.
+    </Note>
+  </Step>
+
+  <Step title="Filter to Specific Group">
+    Use the group filter dropdown to focus on a single value:
+    - Only shows data for the selected group
+    - Useful for drilling down into specific segments
+    - Clear the filter to see all groups again
+  </Step>
+</Steps>
+
+## Understanding Event Properties
+
+Events can include custom properties that provide context:
+
+- **Standard properties**: customer_id, timestamp, event_name
+- **Custom properties**: Any additional data you send with events
+- **Nested properties**: Support for complex object structures
+
+<Tip>
+Send consistent property names across events to make grouping and filtering more powerful. For example, always use `plan_id` instead of mixing `plan_id`, `plan`, and `subscription`.
+</Tip>
+
+## Working with the Events Table
+
+The raw events table shows individual event records:
+
+### Table Features
+- **Pagination**: Navigate large datasets with page controls
+- **Sorting**: Click column headers to sort (where enabled)
+- **Property columns**: All event properties displayed as columns
+- **Row details**: Click rows for more information
+
+### Adjusting Table View
+<Steps>
+  <Step title="Change Page Size">
+    Use the page size dropdown to show more or fewer events per page:
+    - 100, 500, or 1000 events
+    - Larger page sizes load more slowly but reduce pagination
+  </Step>
+
+  <Step title="Navigate Pages">
+    Use the pagination controls to browse through events:
+    - First/Last page buttons
+    - Previous/Next page arrows
+    - Current page indicator shows your position
+  </Step>
+</Steps>
+
+<Note>
+The events table shows total event count at the top. Use this to understand the scope of your data.
+</Note>
+
+## Customer-Specific Analytics
+
+View analytics for individual customers:
+
+<Steps>
+  <Step title="Open Customer Page">
+    Navigate to **Customers** and select a customer.
+  </Step>
+
+  <Step title="Scroll to Analytics Section">
+    The customer detail page includes a dedicated analytics section showing only that customer's events.
+  </Step>
+
+  <Step title="Analyze Customer Usage">
+    Use the same filtering and grouping tools, but scoped to the customer:
+    - See which features they use most
+    - Identify usage trends over time
+    - Understand their engagement patterns
+
+    <Tip>
+    Customer analytics are helpful for:
+    - Identifying power users
+    - Understanding why customers churn
+    - Finding expansion opportunities
+    - Debugging customer-reported issues
+    </Tip>
+  </Step>
+</Steps>
+
+## Common Analytics Workflows
+
+### Tracking Feature Adoption
+<Steps>
+  <Step title="Filter to Feature Events">
+    Select events related to a specific feature (e.g., `feature_used`, `api_call`).
+  </Step>
+
+  <Step title="Group by Customer">
+    Set **Group By** to `customer_id` to see which customers use the feature.
+  </Step>
+
+  <Step title="Analyze Over Time">
+    Use a 30 or 90-day interval to see adoption trends.
+  </Step>
+</Steps>
+
+### Comparing Plan Usage
+<Steps>
+  <Step title="Set Up Grouping">
+    Group events by `plan` or `plan_id` property (requires sending this with events).
+  </Step>
+
+  <Step title="Select Relevant Events">
+    Choose events that indicate product usage.
+  </Step>
+
+  <Step title="Identify Patterns">
+    Look for differences in usage between plan types to inform pricing strategy.
+  </Step>
+</Steps>
+
+### Finding Inactive Customers
+<Steps>
+  <Step title="Set Long Time Range">
+    Use a 30 or 90-day interval.
+  </Step>
+
+  <Step title="Review Customer List">
+    In the events table, note which customer IDs are absent or have low event counts.
+  </Step>
+
+  <Step title="Take Action">
+    Reach out to inactive customers or review their subscription status.
+  </Step>
+</Steps>
+
+## Performance Considerations
+
+<Note>
+Analytics queries can be resource-intensive. The dashboard implements several optimizations:
+- Event data is cached for faster repeat queries
+- Large result sets are paginated
+- Charts are limited to prevent performance issues
+</Note>
+
+<Tip>
+**Query Optimization**: Start with shorter time ranges and fewer events, then expand as needed. This keeps the dashboard responsive.
+</Tip>
+
+## Understanding Data Freshness
+
+Analytics data updates in near real-time:
+- Events appear within seconds of being tracked
+- Charts refresh when you change filters
+- No manual refresh required
+
+<Tip>
+If you don't see recent events, check that your application is correctly sending events to Autumn via the SDK or API.
+</Tip>
+
+## Empty States
+
+If you see "No events found":
+
+1. **No events tracked yet**: Start sending events from your application
+2. **Filters too restrictive**: Widen your date range or select different events
+3. **ClickHouse disabled**: Contact support to enable analytics
+
+<Note>
+The dashboard shows an empty state with a link to documentation when no analytics events exist.
+</Note>
+
+## Advanced Analytics Features
+
+### Property Extraction
+The dashboard automatically detects custom properties in your events and makes them available for grouping and filtering.
+
+### Top Events
+When you open the event selector, events are sorted by frequency, showing your most common events first.
+
+### Data Truncation Warning
+If a grouping has too many unique values (>10), you'll see a toast notification. The chart shows only the top 10 by volume to maintain performance.
+
+## Best Practices
+
+<Tip>
+**Consistent Event Names**: Use clear, consistent naming conventions for events (e.g., `feature_accessed`, `api_call_made`).
+</Tip>
+
+<Tip>
+**Meaningful Properties**: Send useful context with events like plan type, user role, or feature ID to enable rich segmentation.
+</Tip>
+
+<Tip>
+**Regular Monitoring**: Check analytics weekly to catch trends early and identify issues before they impact many customers.
+</Tip>
+
+<Note>
+Analytics data is stored in ClickHouse, a high-performance analytics database designed for fast queries on large datasets.
+</Note>
+
+## Exporting Data
+
+While the dashboard doesn't have a direct export button, you can:
+- Use the API to fetch raw event data
+- Query ClickHouse directly if you have access
+- Take screenshots of charts for reports
+- Copy event data from the table view
+
+## Next Steps
+
+- Learn how to send events from your application using the [Autumn SDK](/sdks/javascript/installation)
+- Set up custom properties for richer analytics
+- Create automated reports using the API
+- Monitor feature usage to inform product development
+
+<Tip>
+Combine analytics insights with invoice data to understand the relationship between usage and revenue.
+</Tip>

@@ -1,0 +1,351 @@
+---
+title: 'Attach Endpoint'
+description: 'Handle all purchase flows with a single endpoint - new subscriptions, upgrades, and downgrades'
+---
+
+## Overview
+
+The `/attach` endpoint is Autumn's unified purchase flow handler. With one function call, you can:
+
+- Create new subscriptions with Stripe Checkout
+- Handle upgrades and downgrades between plans
+- Apply discounts, free trials, and custom pricing
+- Process immediate or deferred billing
+
+## Quick Start
+
+<CodeGroup>
+
+```tsx React Frontend
+import { useCustomer } from '@useautumn/autumn-js/react';
+
+function UpgradeButton() {
+  const { attach } = useCustomer();
+
+  const handleUpgrade = async () => {
+    await attach({ 
+      planId: "pro" 
+    });
+    // User is automatically redirected to checkout if payment is needed
+  };
+
+  return <button onClick={handleUpgrade}>Upgrade to Pro</button>;
+}
+```
+
+```typescript Backend (Node.js)
+import { Autumn } from '@useautumn/sdk';
+
+const autumn = new Autumn({ 
+  secretKey: process.env.AUTUMN_SECRET_KEY 
+});
+
+const result = await autumn.billing.attach({
+  customerId: "cus_123",
+  planId: "pro"
+});
+
+if (result.paymentUrl) {
+  // Redirect customer to checkout
+  res.redirect(result.paymentUrl);
+}
+```
+
+```python Python
+from autumn import Autumn
+
+autumn = Autumn(secret_key=os.environ["AUTUMN_SECRET_KEY"])
+
+result = autumn.billing.attach(
+    customer_id="cus_123",
+    plan_id="pro"
+)
+
+if result.payment_url:
+    # Redirect customer to checkout
+    return redirect(result.payment_url)
+```
+
+</CodeGroup>
+
+## Parameters
+
+<ParamField path="customerId" type="string" required>
+  The ID of the customer attaching to the plan.
+</ParamField>
+
+<ParamField path="planId" type="string" required>
+  The ID of the plan to attach.
+</ParamField>
+
+<ParamField path="entityId" type="string">
+  The ID of the entity for entity-scoped plans (e.g., per-workspace billing).
+</ParamField>
+
+<ParamField path="featureQuantities" type="array">
+  Customize feature quantities (e.g., number of seats).
+  
+  ```typescript
+  featureQuantities: [
+    { featureId: "seats", quantity: 5 },
+    { featureId: "storage", quantity: 100 }
+  ]
+  ```
+</ParamField>
+
+<ParamField path="customize" type="object">
+  Override plan pricing, items, or trial configuration.
+  
+  ```typescript
+  customize: {
+    price: { amount: 2999, interval: "month" },
+    items: [{ featureId: "api_calls", included: 10000 }],
+    freeTrial: { durationLength: 14, durationType: "day" }
+  }
+  ```
+</ParamField>
+
+<ParamField path="discounts" type="array">
+  Apply promotional discounts or rewards.
+  
+  ```typescript
+  discounts: [
+    { promotionCode: "LAUNCH50" },
+    { rewardId: "reward_xyz" }
+  ]
+  ```
+</ParamField>
+
+<ParamField path="successUrl" type="string">
+  URL to redirect to after successful checkout (defaults to current page in frontend).
+</ParamField>
+
+<ParamField path="invoiceMode" type="object">
+  Control deferred invoicing behavior.
+  
+  ```typescript
+  invoiceMode: {
+    enabled: true,
+    enablePlanImmediately: true,  // Grant access before payment
+    finalize: false                // Don't auto-finalize invoice
+  }
+  ```
+</ParamField>
+
+<ParamField path="prorationBehavior" type="string">
+  How to handle prorations on upgrades/downgrades: `"create_prorations"` (default), `"none"`, or `"always_invoice"`.
+</ParamField>
+
+## Response
+
+```typescript
+interface AttachResponse {
+  customerId: string;           // The customer ID
+  entityId?: string;            // The entity ID (if entity-scoped)
+  paymentUrl: string | null;    // Checkout URL (null if no payment needed)
+  invoice?: {                   // Invoice details (if created)
+    stripeId: string;
+    total: number;
+    currency: string;
+    status: string;
+    hostedInvoiceUrl: string | null;
+  };
+  requiredAction?: {            // Action needed (e.g., payment required)
+    code: string;
+    reason: string;
+  };
+}
+```
+
+## Common Use Cases
+
+### New Subscription with Free Trial
+
+<CodeGroup>
+
+```tsx React
+const { attach } = useCustomer();
+
+await attach({
+  planId: "pro",
+  customize: {
+    freeTrial: {
+      durationLength: 14,
+      durationType: "day",
+      cardRequired: true  // Require card upfront
+    }
+  }
+});
+```
+
+```typescript Backend
+await autumn.billing.attach({
+  customerId: "cus_123",
+  planId: "pro",
+  customize: {
+    freeTrial: {
+      durationLength: 14,
+      durationType: "day",
+      cardRequired: true
+    }
+  }
+});
+```
+
+</CodeGroup>
+
+### Seat-Based Plan with Custom Quantity
+
+<CodeGroup>
+
+```tsx React
+const { attach } = useCustomer();
+
+await attach({
+  planId: "team",
+  featureQuantities: [
+    { featureId: "seats", quantity: 10 }
+  ]
+});
+```
+
+```typescript Backend
+await autumn.billing.attach({
+  customerId: "cus_123",
+  planId: "team",
+  featureQuantities: [
+    { featureId: "seats", quantity: 10 }
+  ]
+});
+```
+
+</CodeGroup>
+
+### Custom Pricing for Enterprise Customer
+
+<CodeGroup>
+
+```tsx React
+const { attach } = useCustomer();
+
+await attach({
+  planId: "enterprise",
+  customize: {
+    price: {
+      amount: 49900,      // $499/month
+      interval: "month"
+    },
+    items: [
+      { featureId: "api_calls", unlimited: true },
+      { featureId: "seats", included: 50 }
+    ]
+  }
+});
+```
+
+```typescript Backend
+await autumn.billing.attach({
+  customerId: "cus_123",
+  planId: "enterprise",
+  customize: {
+    price: {
+      amount: 49900,
+      interval: "month"
+    },
+    items: [
+      { featureId: "api_calls", unlimited: true },
+      { featureId: "seats", included: 50 }
+    ]
+  }
+});
+```
+
+</CodeGroup>
+
+## Error Handling
+
+<CodeGroup>
+
+```tsx React
+import { AutumnClientError } from '@useautumn/autumn-js/react';
+
+const { attach } = useCustomer();
+
+try {
+  await attach({ planId: "pro" });
+} catch (error) {
+  if (error instanceof AutumnClientError) {
+    if (error.code === "payment_method_required") {
+      // Customer needs to add payment method
+      console.log("Please add a payment method");
+    } else if (error.code === "plan_not_found") {
+      // Plan doesn't exist
+      console.log("Invalid plan selected");
+    }
+  }
+}
+```
+
+```typescript Backend
+try {
+  await autumn.billing.attach({
+    customerId: "cus_123",
+    planId: "pro"
+  });
+} catch (error) {
+  if (error.code === "payment_method_required") {
+    // Handle missing payment method
+  } else if (error.code === "already_subscribed") {
+    // Customer already has this plan
+  }
+}
+```
+
+</CodeGroup>
+
+## Preview Before Attaching
+
+Use `previewAttach` to show customers what they'll be charged before confirming:
+
+<CodeGroup>
+
+```tsx React
+const { previewAttach } = useCustomer();
+
+const preview = await previewAttach({ planId: "pro" });
+
+// Show line items and total
+preview.lineItems.forEach(item => {
+  console.log(`${item.description}: $${item.amount / 100}`);
+});
+console.log(`Total: $${preview.total / 100}`);
+```
+
+```typescript Backend
+const preview = await autumn.billing.previewAttach({
+  customerId: "cus_123",
+  planId: "pro"
+});
+
+console.log(`Total charge: $${preview.total / 100}`);
+console.log(`Effective date: ${new Date(preview.effectiveAt)}`);
+```
+
+</CodeGroup>
+
+## Related Endpoints
+
+- [Check Endpoint](/integration/check) - Verify feature access before showing upgrade prompts
+- [Track Endpoint](/integration/track) - Record usage events after subscription
+- [Webhooks](/integration/webhooks) - Listen for subscription changes
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Check Access" icon="lock" href="/integration/check">
+    Learn how to verify customer access to features
+  </Card>
+  <Card title="Track Usage" icon="chart-line" href="/integration/track">
+    Record usage events for metered billing
+  </Card>
+</CardGroup>

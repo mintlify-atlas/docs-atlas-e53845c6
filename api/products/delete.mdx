@@ -1,0 +1,79 @@
+---
+title: "Delete Product"
+api: "DELETE /products/:id"
+---
+
+Deletes a product by its ID.
+
+<Warning>
+  Deleting a product will prevent new customers from attaching it. Existing customers with this product will retain access unless you also delete all versions.
+</Warning>
+
+## Path Parameters
+
+<ParamField path="product_id" type="string" required>
+  The ID of the product to delete.
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="all_versions" type="boolean" default={false}>
+  If true, deletes all versions of the product. If false, only deletes the current version.
+</ParamField>
+
+## Response
+
+<ResponseField name="success" type="boolean">
+  Indicates whether the deletion was successful.
+</ResponseField>
+
+<RequestExample>
+```bash cURL
+curl -X DELETE https://api.autumnai.com/products/Pro%20Product \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```bash cURL (All Versions)
+curl -X DELETE "https://api.autumnai.com/products/Pro%20Product?all_versions=true" \
+  -H "Authorization: Bearer YOUR_API_KEY"
+```
+
+```typescript TypeScript
+import { Autumn } from '@autumnai/node-sdk';
+
+const autumn = new Autumn({
+  apiKey: process.env.AUTUMN_API_KEY,
+});
+
+// Delete current version only
+await autumn.products.delete({
+  productId: 'Pro Product',
+});
+
+// Delete all versions
+await autumn.products.delete({
+  productId: 'Pro Product',
+  allVersions: true,
+});
+```
+
+```python Python
+from autumn import Autumn
+
+autumn = Autumn(api_key="YOUR_API_KEY")
+
+# Delete current version only
+autumn.products.delete(product_id="Pro Product")
+
+# Delete all versions
+autumn.products.delete(product_id="Pro Product", all_versions=True)
+```
+</RequestExample>
+
+<ResponseExample>
+```json 200
+{
+  "success": true
+}
+```
+</ResponseExample>

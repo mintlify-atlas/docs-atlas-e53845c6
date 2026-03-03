@@ -1,0 +1,501 @@
+---
+title: Backend Integration
+description: Set up Autumn backend handlers for Next.js, Hono, and custom frameworks
+---
+
+## Overview
+
+Autumn's backend integration creates API routes that proxy requests to the Autumn API while injecting customer identity from your auth system. This ensures customers can only access their own data.
+
+## Framework Adapters
+
+### Next.js
+
+For Next.js App Router, use the `autumn-js/next` adapter:
+
+```ts
+// app/api/autumn/[...autumn]/route.ts
+import { autumnHandler } from 'autumn-js/next';
+import { cookies } from 'next/headers';
+import { validateSession } from '@/lib/auth';
+
+const handler = autumnHandler({
+  secretKey: process.env.AUTUMN_SECRET_KEY,
+  identify: async (request) => {
+    // Get session from cookies
+    const sessionCookie = cookies().get('session');
+    if (!sessionCookie) {
+      return null; // No authenticated user
+    }
+    
+    // Validate and get user ID from your auth system
+    const session = await validateSession(sessionCookie.value);
+    if (!session) return null;
+    
+    return {
+      customerId: session.userId,
+      customerData: {
+        email: session.email,
+        name: session.name,
+      },
+    };
+  },
+});
+
+export { handler as GET, handler as POST, handler as DELETE };
+```
+
+#### Handler Options
+
+<ParamField path="identify" type="(request: Request) => AuthResult" required>
+  Function to extract customer identity from the request. Must return an object with `customerId` or `null` for unauthenticated requests.
+</ParamField>
+
+<ParamField path="secretKey" type="string" optional>
+  Autumn API secret key. Defaults to `AUTUMN_SECRET_KEY` environment variable.
+</ParamField>
+
+<ParamField path="autumnURL" type="string" optional>
+  Autumn API base URL. Defaults to `https://api.useautumn.com/v1`.
+</ParamField>
+
+<ParamField path="pathPrefix" type="string" optional default="/api/autumn">
+  Path prefix for routes. Must match the route file location.
+</ParamField>
+
+### Hono
+
+For Hono applications, use the `autumn-js/hono` adapter:
+
+```ts
+import { Hono } from 'hono';
+import { autumnHandler } from 'autumn-js/hono';
+
+const app = new Hono();
+
+app.use('/api/autumn/*', autumnHandler({
+  secretKey: process.env.AUTUMN_SECRET_KEY,
+  identify: async (c) => {
+    // Get user from Hono context (set by your auth middleware)
+    const user = c.get('user');
+    if (!user) return null;
+    
+    return {
+      customerId: user.id,
+      customerData: {
+        email: user.email,
+        name: user.name,
+      },
+    };
+  },
+}));
+
+export default app;
+```
+
+#### Handler Options
+
+<ParamField path="identify" type="(c: Context) => AuthResult" required>
+  Function to extract customer identity from the Hono context.
+</ParamField>
+
+<ParamField path="secretKey" type="string" optional>
+  Autumn API secret key.
+</ParamField>
+
+<ParamField path="autumnURL" type="string" optional>
+  Autumn API base URL.
+</ParamField>
+
+<ParamField path="pathPrefix" type="string" optional default="/api/autumn">
+  Path prefix for routes.
+</ParamField>
+
+### Framework-Agnostic
+
+For custom frameworks, use the generic `autumnHandler`:
+
+```ts
+import { autumnHandler } from 'autumn-js/backend';
+
+const result = await autumnHandler({
+  request: {
+    url: '/api/autumn/getOrCreateCustomer',
+    method: 'POST',
+    body: {},
+  },
+  customerId: 'user_123',
+  customerData: {
+    email: 'user@example.com',
+    name: 'John Doe',
+  },
+  clientOptions: {
+    secretKey: process.env.AUTUMN_SECRET_KEY,
+  },
+});
+
+console.log(result.statusCode); // 200
+console.log(result.response);   // { id: 'user_123', ... }
+```
+
+#### Handler Options
+
+<ParamField path="request" type="object" required>
+  Request object with `url`, `method`, and `body`.
+</ParamField>
+
+<ParamField path="customerId" type="string" optional>
+  Customer ID to inject into the request.
+</ParamField>
+
+<ParamField path="customerData" type="CustomerData" optional>
+  Additional customer data (email, name, etc.).
+</ParamField>
+
+<ParamField path="clientOptions" type="object" optional>
+  Client configuration with `secretKey` and optional `baseURL`.
+</ParamField>
+
+<ParamField path="pathPrefix" type="string" optional default="/api/autumn">
+  Path prefix for routes.
+</ParamField>
+
+<ParamField path="routes" type="RouteDefinition[]" optional>
+  Custom route definitions (for advanced use cases).
+</ParamField>
+
+## Identity Resolution
+
+The `identify` function is called for every request and must return customer identity:
+
+### Return Type
+
+```ts
+type AuthResult = {
+  customerId: string | null | undefined;
+  customerData?: {
+    email?: string;
+    name?: string;
+    // ... other customer fields
+  };
+} | null;
+```
+
+### Examples
+
+#### Basic User ID
+
+```ts
+identify: async (request) => {
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) return null;
+  
+  return { customerId: userId };
+}
+```
+
+#### With Customer Data
+
+```ts
+identify: async (request) => {
+  const user = await getUserFromRequest(request);
+  if (!user) return null;
+  
+  return {
+    customerId: user.id,
+    customerData: {
+      email: user.email,
+      name: user.name,
+    },
+  };
+}
+```
+
+#### Organization-Based
+
+```ts
+identify: async (request) => {
+  const session = await getSession(request);
+  if (!session) return null;
+  
+  // Use organization ID as customer ID
+  const orgId = session.activeOrganizationId;
+  if (!orgId) return null;
+  
+  return {
+    customerId: orgId,
+    customerData: {
+      name: session.organizationName,
+    },
+  };
+}
+```
+
+#### User + Organization Composite
+
+```ts
+identify: async (request) => {
+  const session = await getSession(request);
+  if (!session) return null;
+  
+  // Composite customer ID
+  const customerId = session.activeOrganizationId 
+    ? `org_${session.activeOrganizationId}`
+    : `user_${session.userId}`;
+  
+  return { customerId };
+}
+```
+
+## Better Auth Plugin
+
+If you're using [Better Auth](https://better-auth.com), the Autumn plugin simplifies setup:
+
+```ts
+import { betterAuth } from 'better-auth';
+import { autumn } from 'autumn-js/better-auth';
+
+export const auth = betterAuth({
+  database: { /* ... */ },
+  plugins: [
+    autumn({
+      secretKey: process.env.AUTUMN_SECRET_KEY,
+      customerScope: 'user', // or 'organization' | 'user_and_organization'
+    }),
+  ],
+});
+```
+
+### Customer Scope
+
+<ParamField path="customerScope" type="'user' | 'organization' | 'user_and_organization'" default="user">
+  Determines how customer identity is resolved:
+  
+  - **`user`** - Customer ID is the user's ID
+  - **`organization`** - Customer ID is the active organization's ID  
+  - **`user_and_organization`** - Customer ID combines both (format: `user_{userId}_org_{orgId}`)
+</ParamField>
+
+### Custom Identity Function
+
+Override the default behavior with a custom `identify` function:
+
+```ts
+autumn({
+  secretKey: process.env.AUTUMN_SECRET_KEY,
+  identify: ({ session, organization }) => {
+    if (!session) return null;
+    
+    // Custom logic
+    if (organization) {
+      return {
+        customerId: organization.id,
+        customerData: {
+          name: organization.name,
+        },
+      };
+    }
+    
+    return {
+      customerId: session.user.id,
+      customerData: {
+        email: session.user.email,
+        name: session.user.name,
+      },
+    };
+  },
+})
+```
+
+#### Identify Function Parameters
+
+<ParamField path="session" type="BetterAuthSession | null">
+  Better Auth session object with user and session data.
+</ParamField>
+
+<ParamField path="organization" type="BetterAuthOrganization | null">
+  Active organization object (if using Better Auth organizations).
+</ParamField>
+
+## Advanced: Custom Routes
+
+For advanced use cases, define custom routes:
+
+```ts
+import { autumnHandler, buildRouter, routeConfigs } from 'autumn-js/backend';
+
+const customRoutes = buildRouter([
+  routeConfigs.getOrCreateCustomer,
+  routeConfigs.attach,
+  routeConfigs.listPlans,
+  // Add only the routes you need
+]);
+
+const handler = autumnHandler({
+  identify: async (request) => { /* ... */ },
+  routes: customRoutes,
+});
+```
+
+### Available Route Configs
+
+- `getOrCreateCustomer`
+- `attach`
+- `previewAttach`
+- `updateSubscription`
+- `previewUpdateSubscription`
+- `multiAttach`
+- `previewMultiAttach`
+- `setupPayment`
+- `openCustomerPortal`
+- `createReferralCode`
+- `redeemReferralCode`
+- `listPlans`
+- `listEvents`
+- `aggregateEvents`
+
+## Core Handler
+
+For maximum flexibility, use the core handler directly:
+
+```ts
+import { createCoreHandler } from 'autumn-js/backend';
+
+const handler = createCoreHandler({
+  identify: async (raw) => {
+    // `raw` is the original request object from your framework
+    const userId = await extractUserId(raw);
+    return { customerId: userId };
+  },
+  secretKey: process.env.AUTUMN_SECRET_KEY,
+});
+
+const result = await handler({
+  method: 'POST',
+  path: '/api/autumn/attach',
+  body: { planId: 'plan_pro' },
+  raw: originalRequest,
+});
+
+console.log(result.status); // 200
+console.log(result.body);   // Response data
+```
+
+### Core Handler Options
+
+<ParamField path="identify" type="(raw: unknown) => AuthResult" required>
+  Function to extract customer identity. Receives the raw request object.
+</ParamField>
+
+<ParamField path="secretKey" type="string" optional>
+  Autumn API secret key.
+</ParamField>
+
+<ParamField path="autumnURL" type="string" optional>
+  Autumn API base URL.
+</ParamField>
+
+<ParamField path="pathPrefix" type="string" optional default="/api/autumn">
+  Path prefix for routes.
+</ParamField>
+
+<ParamField path="routes" type="RouteDefinition[]" optional>
+  Custom route definitions.
+</ParamField>
+
+### Core Handler Request
+
+<ParamField path="method" type="string" required>
+  HTTP method (`GET`, `POST`, `DELETE`).
+</ParamField>
+
+<ParamField path="path" type="string" required>
+  Request path (e.g., `/api/autumn/attach`).
+</ParamField>
+
+<ParamField path="body" type="unknown" optional>
+  Request body (parsed JSON).
+</ParamField>
+
+<ParamField path="raw" type="unknown" optional>
+  Original framework request object (passed to `identify`).
+</ParamField>
+
+## Error Handling
+
+The handler automatically transforms errors into appropriate HTTP responses:
+
+```ts
+// Authentication error
+{ status: 401, body: { message: 'Unauthorized', code: 'unauthorized' } }
+
+// Validation error
+{ status: 400, body: { message: 'Invalid plan ID', code: 'invalid_request' } }
+
+// Not found
+{ status: 404, body: { message: 'Customer not found', code: 'not_found' } }
+
+// Internal error
+{ status: 500, body: { message: 'Internal server error', code: 'internal_error' } }
+```
+
+## Utilities
+
+### secretKeyCheck
+
+Validate that the secret key is configured:
+
+```ts
+import { secretKeyCheck } from 'autumn-js/backend';
+
+const key = secretKeyCheck(process.env.AUTUMN_SECRET_KEY);
+// Throws if key is missing or invalid
+```
+
+### sanitizeBody
+
+Sanitize request body before sending to Autumn API:
+
+```ts
+import { sanitizeBody } from 'autumn-js/backend';
+
+const cleaned = sanitizeBody(requestBody, ['customerId', 'customerData']);
+// Removes protected fields that should be injected by backend
+```
+
+### backendSuccess / backendError
+
+Create standardized backend responses:
+
+```ts
+import { backendSuccess, backendError } from 'autumn-js/backend';
+
+const successResponse = backendSuccess({ data: { id: '123' } });
+// { success: true, data: { id: '123' } }
+
+const errorResponse = backendError({
+  message: 'Invalid request',
+  code: 'invalid_request',
+  statusCode: 400,
+});
+// { success: false, error: { message: '...', code: '...' } }
+```
+
+## Type Exports
+
+All backend types are exported for TypeScript users:
+
+```ts
+import type {
+  AuthResult,
+  CustomerId,
+  CustomerData,
+  ResolvedIdentity,
+  CoreHandlerOptions,
+  UnifiedRequest,
+  UnifiedResponse,
+  RouteDefinition,
+  BackendResult,
+  BackendErrorBody,
+} from 'autumn-js/backend';
+```

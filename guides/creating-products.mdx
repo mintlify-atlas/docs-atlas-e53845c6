@@ -1,0 +1,132 @@
+---
+title: Creating Products
+description: Learn how to create and configure products (plans) in your Autumn dashboard
+---
+
+Products in Autumn are the plans and pricing tiers you offer to your customers. This guide walks you through creating free plans, paid subscriptions, and add-on products.
+
+## Accessing the Products Page
+
+Navigate to the **Products** tab in your dashboard sidebar. This is your central hub for managing all plans, features, and rewards.
+
+<Tip>
+If you don't have any plans yet, you'll see an empty state with a quick-start button to create your first plan.
+</Tip>
+
+## Creating Your First Product
+
+<Steps>
+  <Step title="Open the Create Plan Sheet">
+    Click the **Create Plan** button in the top-right corner of the Products page. This opens a configuration sheet where you'll define your plan details.
+  </Step>
+
+  <Step title="Enter Plan Details">
+    Provide the essential information:
+    - **Plan Name**: A descriptive name like "Pro Plan" or "Starter"
+    - **ID**: Auto-generated slug from your plan name (e.g., `pro-plan`). You can customize this if needed.
+
+    <Note>
+    Plan IDs are permanent identifiers used in API calls and cannot be changed after creation.
+    </Note>
+  </Step>
+
+  <Step title="Select Plan Type">
+    Choose between two plan types:
+
+    **Free Plan**
+    - No pricing required
+    - Perfect for freemium tiers or trial access
+    - Can be set as the default plan for new customers
+
+    **Paid Plan**
+    - Requires pricing configuration
+    - Supports recurring or one-time payments
+    - Cannot be set as default (customers must actively subscribe)
+  </Step>
+
+  <Step title="Configure Pricing (Paid Plans Only)">
+    For paid plans, you'll need to choose a pricing model:
+
+    **Base Price**
+    - Fixed recurring or one-time charge
+    - Select billing cycle: monthly, yearly, or custom intervals
+    - Enter the price in your organization's default currency
+    - You can add usage-based pricing later
+
+    **Per Unit Only**
+    - No base price
+    - Plan cost is entirely usage-based
+    - Customers pay only for what they consume
+  </Step>
+
+  <Step title="Add Additional Options">
+    Configure optional settings:
+    - **Free Trial**: Offer a trial period before charging begins
+    - **Default Plan**: Make this the automatic plan for new customers (free plans only)
+    - **Add-on Plan**: Mark this as an add-on that can be purchased alongside base plans
+  </Step>
+
+  <Step title="Create the Plan">
+    Click **Create Plan** to save your configuration. You'll be redirected to the plan detail page where you can add features, usage limits, and more.
+  </Step>
+</Steps>
+
+## Creating Add-On Plans
+
+Add-ons are supplementary products that customers can purchase in addition to their base plan.
+
+<Steps>
+  <Step title="Start Add-On Creation">
+    When creating a new plan, check the **Add-on Plan** option in the Additional Options section.
+  </Step>
+
+  <Step title="Configure Add-On Details">
+    Add-ons work similarly to regular plans but:
+    - Cannot be set as default plans
+    - Can be attached to customers who already have a base plan
+    - Ideal for extra features, additional seats, or premium support
+  </Step>
+</Steps>
+
+## Pricing Models Explained
+
+### Recurring Pricing
+Charge customers on a regular interval:
+- **Monthly**: Bills every month
+- **Yearly**: Bills every year
+- **Custom**: Set any interval (e.g., every 3 months, every 6 weeks)
+
+### One-Time Pricing
+Single payment for lifetime access to the plan. No recurring charges.
+
+### Usage-Based Pricing
+Charge based on consumption:
+- Configure in the plan detail page after creation
+- Add metered features with per-unit pricing
+- Can be combined with base price or used standalone
+
+## Best Practices
+
+<Tip>
+**Start Simple**: Create a free plan and a single paid plan first. You can always add more tiers and features later.
+</Tip>
+
+<Tip>
+**Use Clear IDs**: While plan names can be changed, IDs are permanent. Use descriptive, lowercase IDs like `professional-monthly` instead of generic ones like `plan1`.
+</Tip>
+
+<Note>
+Products you create are immediately available to attach to customers, but they won't appear in hosted checkout pages until you configure your public pricing page.
+</Note>
+
+## Next Steps
+
+After creating your product:
+- Add **Features** to define what's included in each plan
+- Configure **Usage Limits** for metered features
+- Set up **Free Trials** to attract customers
+- Attach the product to customers manually or via the API
+
+<Tip>
+You can view and edit all your products from the Products list view. Use the table to quickly compare pricing across all plans.
+</Tip>

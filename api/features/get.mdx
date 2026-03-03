@@ -1,0 +1,230 @@
+---
+title: 'Get Feature'
+description: 'Retrieve a single feature by its ID'
+---
+
+## Overview
+
+Retrieve detailed information about a specific feature, including its type, configuration, and display settings.
+
+## Endpoint
+
+```
+POST /v1/features.get
+```
+
+## Request Body
+
+<ParamField path="feature_id" type="string" required>
+  The unique identifier of the feature to retrieve.
+  
+  **Example:** `"api-calls"`, `"seats"`, `"credits"`
+</ParamField>
+
+## Response
+
+Returns the feature object.
+
+<ResponseField name="id" type="string">
+  The unique identifier for this feature.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Human-readable name displayed in the dashboard and billing UI.
+</ResponseField>
+
+<ResponseField name="type" type="enum">
+  Feature type: `"boolean"`, `"metered"`, or `"credit_system"`.
+</ResponseField>
+
+<ResponseField name="consumable" type="boolean">
+  Whether the feature is consumable. `true` for features that reset periodically, `false` for persistent allocations.
+</ResponseField>
+
+<ResponseField name="archived" type="boolean">
+  Whether the feature is archived and hidden from the dashboard.
+</ResponseField>
+
+<ResponseField name="display" type="object">
+  Display names for the feature in billing UI and customer-facing components.
+  
+  <Expandable title="properties">
+    <ResponseField name="singular" type="string">
+      Singular form for UI display (e.g., "API call", "seat").
+    </ResponseField>
+    
+    <ResponseField name="plural" type="string">
+      Plural form for UI display (e.g., "API calls", "seats").
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="credit_schema" type="array">
+  Credit schema mapping (only present for credit_system features).
+  
+  <Expandable title="properties">
+    <ResponseField name="metered_feature_id" type="string">
+      ID of the metered feature that draws from this credit system.
+    </ResponseField>
+    
+    <ResponseField name="credit_cost" type="number">
+      Credits consumed per unit of the metered feature.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="event_names" type="array">
+  Event names that trigger this feature's balance.
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```javascript Node.js
+const response = await fetch('https://api.autumn.com/v1/features.get', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    feature_id: 'api-calls'
+  })
+});
+
+const feature = await response.json();
+console.log(feature);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://api.autumn.com/v1/features.get',
+    headers={
+        'Authorization': 'Bearer YOUR_API_KEY',
+        'Content-Type': 'application/json'
+    },
+    json={'feature_id': 'api-calls'}
+)
+
+feature = response.json()
+print(feature)
+```
+
+```bash cURL
+curl -X POST https://api.autumn.com/v1/features.get \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"feature_id": "api-calls"}'
+```
+
+</CodeGroup>
+
+### Get Metered Feature
+
+```json Request
+{
+  "feature_id": "api-calls"
+}
+```
+
+```json Response
+{
+  "id": "api-calls",
+  "name": "API Calls",
+  "type": "metered",
+  "consumable": true,
+  "archived": false,
+  "display": {
+    "singular": "API call",
+    "plural": "API calls"
+  }
+}
+```
+
+### Get Credit System Feature
+
+```json Request
+{
+  "feature_id": "credits"
+}
+```
+
+```json Response
+{
+  "id": "credits",
+  "name": "Credits",
+  "type": "credit_system",
+  "consumable": true,
+  "archived": false,
+  "credit_schema": [
+    {
+      "metered_feature_id": "api-calls",
+      "credit_cost": 1
+    },
+    {
+      "metered_feature_id": "image-generations",
+      "credit_cost": 10
+    }
+  ],
+  "display": {
+    "singular": "credit",
+    "plural": "credits"
+  }
+}
+```
+
+### Get Boolean Feature
+
+```json Request
+{
+  "feature_id": "advanced-analytics"
+}
+```
+
+```json Response
+{
+  "id": "advanced-analytics",
+  "name": "Advanced Analytics",
+  "type": "boolean",
+  "consumable": false,
+  "archived": false
+}
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Feature Validation" icon="check-circle">
+    Verify a feature exists and retrieve its configuration before using it in `/track` or `/check` calls.
+  </Card>
+  
+  <Card title="Dashboard Display" icon="gauge">
+    Fetch feature details to display in your admin dashboard or customer portal.
+  </Card>
+  
+  <Card title="Configuration Sync" icon="arrows-rotate">
+    Keep your local feature definitions in sync with your Autumn configuration.
+  </Card>
+  
+  <Card title="Pricing Display" icon="dollar-sign">
+    Retrieve feature names and display settings to show in pricing tables.
+  </Card>
+</CardGroup>
+
+## Error Responses
+
+<ResponseField name="code" type="string">
+  Error code identifying the type of error.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable error message.
+</ResponseField>
+
+### Common Errors
+
+- `feature_not_found` - No feature exists with this ID
+- `invalid_feature_id` - Feature ID format is invalid

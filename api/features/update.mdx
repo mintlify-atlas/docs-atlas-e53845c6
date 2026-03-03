@@ -1,0 +1,282 @@
+---
+title: "Update Feature"
+description: "Modify an existing feature's properties"
+---
+
+## Overview
+
+Update a feature's name, display settings, or archive status. The feature type and ID cannot be changed if the feature is in use by customers.
+
+## Endpoint
+
+```
+POST /v1/features.update
+```
+
+## Request Body
+
+<ParamField path="feature_id" type="string" required>
+  The unique identifier of the feature to update.
+  
+  **Example:** `"api-calls"`, `"seats"`, `"credits"`
+</ParamField>
+
+<ParamField path="new_feature_id" type="string">
+  The new ID for this feature. Can only be changed if the feature is not being used by any customers.
+  
+  **Example:** `"api-requests"` (renaming from `"api-calls"`)
+</ParamField>
+
+<ParamField path="name" type="string">
+  Update the human-readable name displayed in dashboards.
+  
+  **Example:** `"API Requests"` (updating from `"API Calls"`)
+</ParamField>
+
+<ParamField path="display" type="object">
+  Update display names for the feature in billing UI.
+  
+  <Expandable title="Display Object">
+    <ParamField path="singular" type="string">
+      Singular form for UI display.
+    </ParamField>
+    
+    <ParamField path="plural" type="string">
+      Plural form for UI display.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="archived" type="boolean">
+  Archive or unarchive the feature. Archived features are hidden from the dashboard but remain accessible via the API.
+  
+  Set to `true` to archive, `false` to unarchive.
+</ParamField>
+
+## Response
+
+Returns the updated feature object.
+
+<ResponseField name="id" type="string">
+  The feature identifier (updated if new_feature_id was provided).
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The updated feature name.
+</ResponseField>
+
+<ResponseField name="type" type="enum">
+  Feature type (cannot be changed via update).
+</ResponseField>
+
+<ResponseField name="consumable" type="boolean">
+  Whether the feature is consumable (cannot be changed via update).
+</ResponseField>
+
+<ResponseField name="archived" type="boolean">
+  The updated archived status.
+</ResponseField>
+
+<ResponseField name="display" type="object">
+  The updated display settings.
+</ResponseField>
+
+<ResponseField name="credit_schema" type="array">
+  Credit schema (only for credit_system features, cannot be changed via update).
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```javascript Node.js
+const response = await fetch('https://api.autumn.com/v1/features.update', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    feature_id: 'api-calls',
+    name: 'API Requests',
+    display: {
+      singular: 'API request',
+      plural: 'API requests'
+    }
+  })
+});
+
+const feature = await response.json();
+console.log(feature);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://api.autumn.com/v1/features.update',
+    headers={
+        'Authorization': 'Bearer YOUR_API_KEY',
+        'Content-Type': 'application/json'
+    },
+    json={
+        'feature_id': 'api-calls',
+        'name': 'API Requests',
+        'display': {
+            'singular': 'API request',
+            'plural': 'API requests'
+        }
+    }
+)
+
+feature = response.json()
+print(feature)
+```
+
+```bash cURL
+curl -X POST https://api.autumn.com/v1/features.update \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "feature_id": "api-calls",
+    "name": "API Requests",
+    "display": {
+      "singular": "API request",
+      "plural": "API requests"
+    }
+  }'
+```
+
+</CodeGroup>
+
+### Update Name and Display
+
+```json Request
+{
+  "feature_id": "api-calls",
+  "name": "API Requests",
+  "display": {
+    "singular": "API request",
+    "plural": "API requests"
+  }
+}
+```
+
+```json Response
+{
+  "id": "api-calls",
+  "name": "API Requests",
+  "type": "metered",
+  "consumable": true,
+  "archived": false,
+  "display": {
+    "singular": "API request",
+    "plural": "API requests"
+  }
+}
+```
+
+### Archive a Feature
+
+```json Request
+{
+  "feature_id": "old-feature",
+  "archived": true
+}
+```
+
+```json Response
+{
+  "id": "old-feature",
+  "name": "Old Feature",
+  "type": "metered",
+  "consumable": true,
+  "archived": true,
+  "display": {
+    "singular": "unit",
+    "plural": "units"
+  }
+}
+```
+
+### Rename Feature ID
+
+```json Request
+{
+  "feature_id": "api-calls",
+  "new_feature_id": "api-requests"
+}
+```
+
+```json Response
+{
+  "id": "api-requests",
+  "name": "API Calls",
+  "type": "metered",
+  "consumable": true,
+  "archived": false,
+  "display": {
+    "singular": "API call",
+    "plural": "API calls"
+  }
+}
+```
+
+## Important Notes
+
+<Warning>
+**Type and Consumable Cannot Be Changed**
+
+The `type` and `consumable` properties cannot be modified after feature creation. If you need to change these, create a new feature and migrate customers to it.
+</Warning>
+
+<Warning>
+**Feature ID Restrictions**
+
+The `new_feature_id` parameter can only be used if the feature is not being used by any customers. If customers have this feature in their plans, you must migrate them first.
+</Warning>
+
+<Info>
+**Archiving vs Deleting**
+
+Archive features instead of deleting them when they're used in products or by customers. Archived features remain functional but are hidden from the dashboard.
+</Info>
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Rebrand Feature" icon="pen">
+    Update the feature name and display text to match your evolving product terminology.
+  </Card>
+  
+  <Card title="Deprecate Feature" icon="archive">
+    Archive old features to hide them from the dashboard while maintaining backward compatibility.
+  </Card>
+  
+  <Card title="Improve Clarity" icon="spell-check">
+    Update display names to make billing and usage more clear to customers.
+  </Card>
+  
+  <Card title="Clean Up" icon="broom">
+    Mark test or experimental features as archived to keep your feature list organized.
+  </Card>
+</CardGroup>
+
+## Error Responses
+
+<ResponseField name="code" type="string">
+  Error code identifying the type of error.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable error message.
+</ResponseField>
+
+### Common Errors
+
+- `feature_not_found` - No feature exists with this ID
+- `feature_in_use` - Cannot change feature_id because it's used by customers
+- `feature_id_exists` - The new_feature_id is already taken by another feature
+- `invalid_feature_id` - Feature ID format is invalid
+- `cannot_change_type` - Feature type cannot be modified after creation
+- `cannot_change_consumable` - Consumable property cannot be modified after creation

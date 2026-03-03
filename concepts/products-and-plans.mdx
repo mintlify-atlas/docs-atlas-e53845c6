@@ -1,0 +1,267 @@
+---
+title: Products and Plans
+description: Understanding products, pricing plans, and how they work together in Autumn
+---
+
+## Overview
+
+In Autumn, **Products** represent the pricing plans that customers can subscribe to. Each product bundles together prices, entitlements, and features to create a complete monetization package.
+
+<Note>
+  Products are versioned, allowing you to iterate on pricing without affecting existing customers. When you update a product, a new version is created automatically.
+</Note>
+
+## Product Structure
+
+A product consists of several key components:
+
+```typescript
+type Product = {
+  id: string;                    // User-facing identifier (e.g., "pro", "enterprise")
+  internal_id: string;           // Internal database identifier
+  name: string;                  // Display name (e.g., "Pro Plan")
+  description: string | null;    // Optional description
+  version: number;               // Version number for tracking changes
+  
+  // Organization
+  org_id: string;                // Organization that owns this product
+  env: "test" | "prod";         // Environment (test or production)
+  
+  // Categorization
+  is_add_on: boolean;            // Whether this is an add-on product
+  is_default: boolean;           // Whether this is a default product
+  group: string;                 // Grouping for related products
+  
+  // External integration
+  processor: {                   // Payment processor details
+    type: "stripe";
+    id: string;                  // Stripe product ID
+  } | null;
+  
+  // Metadata
+  created_at: number;
+  archived: boolean;             // Soft delete flag
+};
+```
+
+## Product Types
+
+Autumn supports several product patterns:
+
+### Subscription Plans
+
+Recurring products with monthly, quarterly, or annual billing:
+
+```typescript
+// Example: Monthly Pro Plan
+{
+  id: "pro_monthly",
+  name: "Pro Plan (Monthly)",
+  is_add_on: false,
+  is_default: false,
+  // Contains prices with interval: "month"
+}
+```
+
+### Add-ons
+
+Supplementary products that can be attached to a base plan:
+
+```typescript
+// Example: Extra storage add-on
+{
+  id: "extra_storage",
+  name: "Additional Storage",
+  is_add_on: true,
+  is_default: false,
+}
+```
+
+### Free Plans
+
+Products with zero-cost pricing, often used as default entry points:
+
+```typescript
+// Example: Free tier
+{
+  id: "free",
+  name: "Free Plan",
+  is_add_on: false,
+  is_default: true,  // Assigned to new customers
+  group: "base",     // Grouped with other base plans
+}
+```
+
+<Info>
+  A product is considered "free" when all its prices have a total cost of zero.
+</Info>
+
+### One-off Products
+
+Single-purchase products without recurring charges:
+
+```typescript
+// Example: Credits pack purchase
+{
+  id: "credits_1000",
+  name: "1,000 AI Credits",
+  is_add_on: true,
+  // Contains prices with interval: "one_off"
+}
+```
+
+## Product Versioning
+
+When you modify a product, Autumn creates a new version while preserving the old one:
+
+```typescript
+// Original version
+{ id: "pro", version: 1, name: "Pro Plan", /* ... */ }
+
+// After updating pricing
+{ id: "pro", version: 2, name: "Pro Plan", /* ... */ }
+```
+
+**Key points:**
+- Existing customers stay on their current version
+- New customers get the latest version
+- Each version has a unique `internal_id` but shares the same `id`
+- You can migrate customers between versions using the migration API
+
+## Product Groups
+
+The `group` field organizes related products:
+
+```typescript
+// Base subscription tiers
+{ id: "free", group: "base" }
+{ id: "pro", group: "base" }
+{ id: "enterprise", group: "base" }
+
+// Add-ons
+{ id: "extra_seats", group: "addons" }
+{ id: "priority_support", group: "addons" }
+```
+
+Groups are useful for:
+- Organizing products in your dashboard
+- Defining upgrade/downgrade paths
+- Managing default products per category
+
+## Full Product Object
+
+When working with the API, you'll often receive a `FullProduct` that includes all related data:
+
+```typescript
+type FullProduct = Product & {
+  prices: Price[];                      // All pricing configurations
+  entitlements: Entitlement[];          // Feature access grants
+  free_trial: FreeTrial | null;         // Optional free trial config
+};
+```
+
+This bundled structure makes it easy to understand everything a product offers:
+
+```typescript
+const proProduct: FullProduct = {
+  id: "pro",
+  name: "Pro Plan",
+  version: 1,
+  // ... other product fields
+  
+  prices: [
+    {
+      config: {
+        type: "fixed",
+        amount: 2900,        // $29.00
+        interval: "month"
+      }
+    }
+  ],
+  
+  entitlements: [
+    {
+      feature_id: "api_calls",
+      allowance: 100000,
+      allowance_type: "metered"
+    },
+    {
+      feature_id: "advanced_analytics",
+      allowance_type: "boolean"
+    }
+  ],
+  
+  free_trial: {
+    interval: "day",
+    interval_count: 14
+  }
+};
+```
+
+## Creating Products
+
+Products are typically created through the Autumn dashboard, but you can also use the API:
+
+```typescript
+// Using the attach endpoint
+const { attach } = useAutumn();
+
+await attach({
+  productId: "pro",  // Attaches the latest version of "pro"
+});
+```
+
+See [Pricing Models](/concepts/pricing-models) to learn about the different price types you can add to products.
+
+## Product Upgrade/Downgrade Logic
+
+Autumn automatically determines whether moving between products is an upgrade or downgrade:
+
+```typescript
+// Comparison factors (in order):
+// 1. Free vs Paid: Any paid product > free product
+// 2. Billing interval: Longer intervals rank higher (year > month > one_off)
+// 3. Total price: Higher price = upgrade
+
+// Examples:
+isFreeProduct(freePlan.prices)        // true
+isProductUpgrade({
+  prices1: freePlan.prices,
+  prices2: proPlan.prices
+})                                     // true (free → paid)
+
+isProductUpgrade({
+  prices1: monthlyPlan.prices,
+  prices2: annualPlan.prices  
+})                                     // true (monthly → annual)
+```
+
+<Tip>
+  Autumn handles all the complexity of upgrades and downgrades, including proration, for you automatically.
+</Tip>
+
+## Custom Products
+
+You can create custom pricing for specific customers:
+
+```typescript
+// Products can be marked as custom
+{
+  id: "enterprise_custom_acme",
+  name: "Enterprise - Acme Corp",
+  is_custom: true,  // Not shown in public pricing
+  // ... custom pricing configuration
+}
+```
+
+Custom products:
+- Don't appear in standard product listings
+- Can have negotiated pricing
+- Can combine features from multiple standard products
+- Are tracked separately in analytics
+
+## Next Steps
+
+- Learn about [Pricing Models](/concepts/pricing-models) to understand different price types
+- Explore [Features](/concepts/features) to see how to control feature access
+- Read about [Customers](/concepts/customers) to understand how products are assigned

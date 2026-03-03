@@ -1,0 +1,370 @@
+---
+title: "Hono Adapter"
+description: "Integrate Autumn with Hono web framework"
+icon: "fire"
+---
+
+## Overview
+
+The Hono adapter provides seamless integration between Autumn and the [Hono](https://hono.dev/) web framework. It automatically handles routing, request parsing, and customer identification for all Autumn endpoints.
+
+## Installation
+
+Install the Autumn JS SDK which includes the Hono adapter:
+
+```bash
+npm install autumn-js
+```
+
+## Quick Start
+
+Set up the Autumn handler as middleware in your Hono application:
+
+```typescript
+import { Hono } from "hono";
+import { honoAutumnHandler } from "autumn-js/adapters";
+
+const app = new Hono();
+
+// Add Autumn middleware
+app.use(
+  "/api/autumn/*",
+  honoAutumnHandler({
+    identify: (c) => {
+      // Get the user from your auth middleware
+      const user = c.get("user");
+      
+      if (!user) return null;
+      
+      return {
+        customerId: user.id,
+        customerData: {
+          name: user.name,
+          email: user.email,
+        },
+      };
+    },
+    secretKey: process.env.AUTUMN_SECRET_KEY,
+  })
+);
+
+export default app;
+```
+
+## Configuration
+
+The `honoAutumnHandler` accepts the following options:
+
+### Options
+
+<ParamField path="identify" type="(c: Context) => AuthResult" required>
+  Function to identify the customer from the Hono context. Return `null` for unauthenticated requests.
+  
+  **Returns:** `{ customerId: string; customerData?: { name?: string; email?: string; ... } }` or `null`
+</ParamField>
+
+<ParamField path="secretKey" type="string" default="process.env.AUTUMN_SECRET_KEY">
+  Your Autumn API secret key. Defaults to the `AUTUMN_SECRET_KEY` environment variable.
+</ParamField>
+
+<ParamField path="autumnURL" type="string" default="https://api.useautumn.com/v1">
+  The Autumn API base URL. Only change this if you're self-hosting Autumn.
+</ParamField>
+
+<ParamField path="pathPrefix" type="string" default="/api/autumn">
+  The path prefix for all Autumn routes. Routes will be registered under this prefix.
+</ParamField>
+
+## Integration with Authentication
+
+### Using Hono Context Variables
+
+If your auth middleware sets user data on the Hono context, you can access it in the identify function:
+
+```typescript
+import { Hono } from "hono";
+import { honoAutumnHandler } from "autumn-js/adapters";
+import { authMiddleware } from "./auth";
+
+type Variables = {
+  user: { id: string; email: string; name: string };
+};
+
+const app = new Hono<{ Variables: Variables }>();
+
+// Your auth middleware
+app.use("*", authMiddleware());
+
+// Autumn integration
+app.use(
+  "/api/autumn/*",
+  honoAutumnHandler({
+    identify: (c) => {
+      const user = c.get("user");
+      return user
+        ? {
+            customerId: user.id,
+            customerData: { name: user.name, email: user.email },
+          }
+        : null;
+    },
+  })
+);
+```
+
+### Using JWT Authentication
+
+```typescript
+import { Hono } from "hono";
+import { jwt } from "hono/jwt";
+import { honoAutumnHandler } from "autumn-js/adapters";
+
+const app = new Hono();
+
+// JWT middleware for protected routes
+app.use(
+  "/api/*",
+  jwt({
+    secret: process.env.JWT_SECRET!,
+  })
+);
+
+app.use(
+  "/api/autumn/*",
+  honoAutumnHandler({
+    identify: (c) => {
+      const payload = c.get("jwtPayload");
+      
+      return {
+        customerId: payload.sub,
+        customerData: {
+          email: payload.email,
+          name: payload.name,
+        },
+      };
+    },
+  })
+);
+```
+
+### Cookie-based Sessions
+
+```typescript
+import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
+import { honoAutumnHandler } from "autumn-js/adapters";
+
+const app = new Hono();
+
+app.use(
+  "/api/autumn/*",
+  honoAutumnHandler({
+    identify: async (c) => {
+      const sessionId = getCookie(c, "session");
+      
+      if (!sessionId) return null;
+      
+      // Fetch user from your session store
+      const user = await getSessionUser(sessionId);
+      
+      return user
+        ? {
+            customerId: user.id,
+            customerData: { name: user.name, email: user.email },
+          }
+        : null;
+    },
+  })
+);
+```
+
+## Available Routes
+
+Once configured, the following routes are automatically available:
+
+### Customer Routes
+
+- `POST /api/autumn/getOrCreateCustomer` - Get or create customer
+
+### Billing Routes
+
+- `POST /api/autumn/attach` - Attach a plan to customer
+- `POST /api/autumn/previewAttach` - Preview plan attachment
+- `POST /api/autumn/updateSubscription` - Update subscription
+- `POST /api/autumn/previewUpdateSubscription` - Preview subscription update
+- `POST /api/autumn/openCustomerPortal` - Open customer billing portal
+- `POST /api/autumn/multiAttach` - Attach multiple plans
+- `POST /api/autumn/previewMultiAttach` - Preview multiple plan attachments
+- `POST /api/autumn/setupPayment` - Setup payment method
+
+### Plan Routes
+
+- `POST /api/autumn/listPlans` - List available plans
+
+### Event Routes
+
+- `POST /api/autumn/listEvents` - List customer events
+- `POST /api/autumn/aggregateEvents` - Aggregate event data
+
+### Referral Routes
+
+- `POST /api/autumn/createReferralCode` - Create referral code
+- `POST /api/autumn/redeemReferralCode` - Redeem referral code
+
+## How It Works
+
+The adapter:
+
+1. **Intercepts requests** to the configured path prefix (default: `/api/autumn/*`)
+2. **Parses the request** body and method
+3. **Calls your identify function** to get customer identity
+4. **Routes to the appropriate handler** based on the endpoint path
+5. **Returns JSON responses** with appropriate HTTP status codes
+6. **Passes through 404s** to your next middleware if the route doesn't match
+
+## TypeScript Support
+
+The adapter provides full TypeScript support with proper type inference:
+
+```typescript
+import type { HonoAutumnHandlerOptions } from "autumn-js/adapters";
+import type { Context } from "hono";
+
+type AppContext = Context<{
+  Variables: {
+    user: { id: string; email: string };
+  };
+}>;
+
+const options: HonoAutumnHandlerOptions<AppContext> = {
+  identify: (c) => {
+    const user = c.get("user"); // Fully typed
+    return user
+      ? { customerId: user.id, customerData: { email: user.email } }
+      : null;
+  },
+};
+```
+
+## Error Handling
+
+The adapter automatically handles errors and returns appropriate responses:
+
+- **401 Unauthorized** - When `identify` returns `null` for protected routes
+- **404 Not Found** - When the route doesn't match (passed to next middleware)
+- **400 Bad Request** - For invalid request bodies
+- **500 Internal Server Error** - For SDK errors
+
+All error responses follow the format:
+
+```json
+{
+  "code": "error_code",
+  "message": "Human-readable error message"
+}
+```
+
+## Custom Path Prefix
+
+You can customize where Autumn routes are mounted:
+
+```typescript
+app.use(
+  "/billing/*",
+  honoAutumnHandler({
+    identify: (c) => {/* ... */},
+    pathPrefix: "/billing",
+  })
+);
+
+// Routes will be:
+// POST /billing/attach
+// POST /billing/listPlans
+// etc.
+```
+
+## Environment Variables
+
+The adapter uses the following environment variables:
+
+```bash
+# Required: Your Autumn secret key
+AUTUMN_SECRET_KEY=sk_...
+
+# Optional: Custom Autumn API URL (for self-hosted instances)
+AUTUMN_API_URL=https://api.useautumn.com/v1
+```
+
+## Complete Example
+
+Here's a complete example with authentication and custom routes:
+
+```typescript
+import { Hono } from "hono";
+import { jwt } from "hono/jwt";
+import { honoAutumnHandler } from "autumn-js/adapters";
+
+type Variables = {
+  jwtPayload: {
+    sub: string;
+    email: string;
+    name: string;
+  };
+};
+
+const app = new Hono<{ Variables: Variables }>();
+
+// Public routes
+app.get("/", (c) => c.text("Hello!"));
+
+// Protected routes
+app.use(
+  "/api/*",
+  jwt({
+    secret: process.env.JWT_SECRET!,
+  })
+);
+
+// Autumn integration
+app.use(
+  "/api/autumn/*",
+  honoAutumnHandler({
+    identify: (c) => {
+      const payload = c.get("jwtPayload");
+      return {
+        customerId: payload.sub,
+        customerData: {
+          email: payload.email,
+          name: payload.name,
+        },
+      };
+    },
+    secretKey: process.env.AUTUMN_SECRET_KEY,
+  })
+);
+
+// Your other API routes
+app.get("/api/profile", (c) => {
+  const payload = c.get("jwtPayload");
+  return c.json({ userId: payload.sub });
+});
+
+export default app;
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Better Auth Integration" icon="shield" href="/sdks/adapters/better-auth">
+    Use Autumn with Better Auth for authentication
+  </Card>
+  <Card title="React Hooks" icon="react" href="/sdks/javascript/react-hooks">
+    Call Autumn endpoints from your React frontend
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore all available API endpoints
+  </Card>
+  <Card title="Billing Integration" icon="credit-card" href="/integration/attach">
+    Learn about attaching plans and billing
+  </Card>
+</CardGroup>

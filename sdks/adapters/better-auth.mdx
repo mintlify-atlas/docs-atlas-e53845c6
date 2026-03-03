@@ -1,0 +1,509 @@
+---
+title: "Better Auth Plugin"
+description: "Integrate Autumn with Better Auth authentication"
+icon: "shield-check"
+---
+
+## Overview
+
+The Better Auth plugin provides first-class integration between Autumn and [Better Auth](https://www.better-auth.com/), a modern authentication library for TypeScript. It automatically handles customer identification based on your Better Auth session and organization context.
+
+## Installation
+
+Install both Autumn and Better Auth:
+
+```bash
+npm install autumn-js better-auth
+```
+
+## Quick Start
+
+### Server Setup
+
+Add the Autumn plugin to your Better Auth configuration:
+
+```typescript lib/auth.ts
+import { betterAuth } from "better-auth";
+import { autumn } from "autumn-js/better-auth";
+
+export const auth = betterAuth({
+  database: {
+    // Your database config
+  },
+  plugins: [
+    autumn({
+      secretKey: process.env.AUTUMN_SECRET_KEY,
+    }),
+  ],
+});
+```
+
+### Client Setup
+
+Add the Autumn client plugin:
+
+```typescript lib/auth-client.ts
+import { createAuthClient } from "better-auth/client";
+import { autumnClient } from "autumn-js/better-auth/client";
+
+export const authClient = createAuthClient({
+  baseURL: "http://localhost:3000",
+  plugins: [autumnClient()],
+});
+```
+
+That's it! Autumn endpoints are now available on your auth client.
+
+## Configuration
+
+### Plugin Options
+
+<ParamField path="secretKey" type="string" default="process.env.AUTUMN_SECRET_KEY">
+  Your Autumn API secret key. Defaults to the `AUTUMN_SECRET_KEY` environment variable.
+</ParamField>
+
+<ParamField path="baseURL" type="string" default="https://api.useautumn.com/v1">
+  The Autumn API base URL. Only change this if you're self-hosting Autumn.
+</ParamField>
+
+<ParamField path="customerScope" type="CustomerScope" default="user">
+  How to resolve customer identity from the session. Options:
+  - `"user"` - Use the authenticated user as the customer
+  - `"organization"` - Use the active organization as the customer
+  - `"user_and_organization"` - Prefer organization, fall back to user
+</ParamField>
+
+<ParamField path="identify" type="IdentifyFn">
+  Custom identity resolver function. Overrides `customerScope` for advanced use cases.
+</ParamField>
+
+### Customer Scope Modes
+
+#### User Scope (Default)
+
+Customers are identified by user ID:
+
+```typescript
+autumn({
+  customerScope: "user",
+})
+```
+
+#### Organization Scope
+
+Customers are identified by organization ID (requires Better Auth organization plugin):
+
+```typescript
+import { betterAuth } from "better-auth";
+import { organization } from "better-auth/plugins";
+import { autumn } from "autumn-js/better-auth";
+
+export const auth = betterAuth({
+  plugins: [
+    organization(),
+    autumn({
+      customerScope: "organization",
+    }),
+  ],
+});
+```
+
+#### User and Organization Scope
+
+Prefer organization if active, otherwise use user:
+
+```typescript
+autumn({
+  customerScope: "user_and_organization",
+})
+```
+
+### Custom Identity Resolution
+
+For advanced scenarios, provide a custom `identify` function:
+
+```typescript
+autumn({
+  identify: ({ session, organization }) => {
+    // Use organization for business accounts
+    if (organization) {
+      return {
+        customerId: organization.id,
+        customerData: {
+          name: organization.name,
+        },
+      };
+    }
+    
+    // Use user for personal accounts
+    if (session?.user) {
+      return {
+        customerId: session.user.id,
+        customerData: {
+          name: session.user.name,
+          email: session.user.email,
+        },
+      };
+    }
+    
+    return null;
+  },
+})
+```
+
+## Client Usage
+
+### Calling Autumn Endpoints
+
+Use the auth client to call Autumn endpoints:
+
+```typescript
+import { authClient } from "@/lib/auth-client";
+
+// Get or create customer
+const customer = await authClient.autumn.getOrCreateCustomer({
+  body: {
+    expand: ["balances.feature"],
+  },
+});
+
+// List available plans
+const plans = await authClient.autumn.listPlans({
+  body: {},
+});
+
+// Attach a plan to the customer
+const result = await authClient.autumn.attach({
+  body: {
+    planId: "plan_123",
+  },
+});
+
+// Open customer portal
+const portal = await authClient.autumn.openCustomerPortal({
+  body: {
+    returnUrl: window.location.href,
+  },
+});
+```
+
+### Available Endpoints
+
+All Autumn endpoints are available under `authClient.autumn.*`:
+
+#### Customer Endpoints
+
+```typescript
+// Get or create customer
+await authClient.autumn.getOrCreateCustomer({ body: {} });
+```
+
+#### Billing Endpoints
+
+```typescript
+// Attach a plan
+await authClient.autumn.attach({ body: { planId: "plan_123" } });
+
+// Preview attach
+await authClient.autumn.previewAttach({ body: { planId: "plan_123" } });
+
+// Update subscription
+await authClient.autumn.updateSubscription({ body: { /* ... */ } });
+
+// Preview update
+await authClient.autumn.previewUpdateSubscription({ body: { /* ... */ } });
+
+// Open customer portal
+await authClient.autumn.openCustomerPortal({ body: { returnUrl: "/" } });
+
+// Multi-attach plans
+await authClient.autumn.multiAttach({ body: { plans: [/* ... */] } });
+
+// Preview multi-attach
+await authClient.autumn.previewMultiAttach({ body: { plans: [/* ... */] } });
+
+// Setup payment method
+await authClient.autumn.setupPayment({ body: {} });
+```
+
+#### Plan Endpoints
+
+```typescript
+// List plans
+await authClient.autumn.listPlans({ body: {} });
+```
+
+#### Event Endpoints
+
+```typescript
+// List events
+await authClient.autumn.listEvents({ body: {} });
+
+// Aggregate events
+await authClient.autumn.aggregateEvents({ body: { /* ... */ } });
+```
+
+#### Referral Endpoints
+
+```typescript
+// Create referral code
+await authClient.autumn.createReferralCode({ body: {} });
+
+// Redeem referral code
+await authClient.autumn.redeemReferralCode({ body: { code: "REF123" } });
+```
+
+## React Integration
+
+Use Autumn with Better Auth React hooks:
+
+```typescript components/billing/PlanSelector.tsx
+import { authClient } from "@/lib/auth-client";
+import { useState, useEffect } from "react";
+
+export function PlanSelector() {
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    async function loadPlans() {
+      try {
+        const result = await authClient.autumn.listPlans({ body: {} });
+        setPlans(result.data?.plans || []);
+      } catch (error) {
+        console.error("Failed to load plans", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    loadPlans();
+  }, []);
+  
+  const handleAttach = async (planId: string) => {
+    try {
+      await authClient.autumn.attach({ body: { planId } });
+      alert("Plan attached successfully!");
+    } catch (error) {
+      console.error("Failed to attach plan", error);
+    }
+  };
+  
+  if (loading) return <div>Loading...</div>;
+  
+  return (
+    <div>
+      {plans.map((plan) => (
+        <div key={plan.id}>
+          <h3>{plan.name}</h3>
+          <button onClick={() => handleAttach(plan.id)}>
+            Subscribe
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## Server-Side Usage
+
+Access Autumn endpoints server-side using Better Auth's server methods:
+
+```typescript app/api/billing/route.ts
+import { auth } from "@/lib/auth";
+import { NextResponse } from "next/server";
+
+export async function GET(request: Request) {
+  // Get session from Better Auth
+  const session = await auth.api.getSession({
+    headers: request.headers,
+  });
+  
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  
+  // Call Autumn endpoint
+  const result = await auth.api.autumn.getOrCreateCustomer({
+    body: { expand: ["balances.feature"] },
+    headers: request.headers,
+  });
+  
+  return NextResponse.json(result);
+}
+```
+
+## Organization Support
+
+When using Better Auth's organization plugin:
+
+```typescript lib/auth.ts
+import { betterAuth } from "better-auth";
+import { organization } from "better-auth/plugins";
+import { autumn } from "autumn-js/better-auth";
+
+export const auth = betterAuth({
+  plugins: [
+    organization(),
+    autumn({
+      // Use organization as customer when active
+      customerScope: "organization",
+    }),
+  ],
+});
+```
+
+Now Autumn will:
+1. Use the active organization as the customer when one is selected
+2. Use organization name for customer data
+3. Return `null` for customer when no organization is active
+
+## TypeScript Support
+
+The plugin provides full TypeScript support:
+
+```typescript
+import type { AutumnOptions } from "autumn-js/better-auth";
+
+const options: AutumnOptions = {
+  secretKey: process.env.AUTUMN_SECRET_KEY,
+  customerScope: "user",
+  identify: ({ session, organization }) => {
+    // Fully typed session and organization
+    if (organization) {
+      return {
+        customerId: organization.id,
+        customerData: { name: organization.name },
+      };
+    }
+    
+    if (session?.user) {
+      return {
+        customerId: session.user.id,
+        customerData: {
+          name: session.user.name,
+          email: session.user.email,
+        },
+      };
+    }
+    
+    return null;
+  },
+};
+```
+
+## How It Works
+
+1. **Session Resolution** - Better Auth provides the current session
+2. **Organization Resolution** - If using organizations, gets the active organization
+3. **Identity Resolution** - Resolves customer identity based on `customerScope` or custom `identify` function
+4. **Endpoint Routing** - Routes requests to appropriate Autumn API endpoints
+5. **Response Handling** - Returns typed responses to your client
+
+## Error Handling
+
+The plugin handles authentication errors:
+
+```typescript
+try {
+  const result = await authClient.autumn.attach({ body: { planId: "plan_123" } });
+} catch (error) {
+  if (error.status === 401) {
+    // User not authenticated
+    console.error("Please sign in");
+  } else if (error.status === 404) {
+    // Plan not found
+    console.error("Invalid plan ID");
+  } else {
+    console.error("Unexpected error", error);
+  }
+}
+```
+
+## Environment Variables
+
+```bash .env
+# Required: Your Autumn secret key
+AUTUMN_SECRET_KEY=sk_...
+
+# Optional: Custom Autumn API URL (for self-hosted instances)
+AUTUMN_BASE_URL=https://api.useautumn.com/v1
+```
+
+## Complete Example
+
+Here's a full example with organizations:
+
+```typescript lib/auth.ts
+import { betterAuth } from "better-auth";
+import { organization } from "better-auth/plugins";
+import { autumn } from "autumn-js/better-auth";
+
+export const auth = betterAuth({
+  database: {
+    provider: "postgres",
+    url: process.env.DATABASE_URL!,
+  },
+  plugins: [
+    organization(),
+    autumn({
+      secretKey: process.env.AUTUMN_SECRET_KEY,
+      customerScope: "user_and_organization",
+    }),
+  ],
+});
+```
+
+```typescript lib/auth-client.ts
+import { createAuthClient } from "better-auth/client";
+import { organizationClient } from "better-auth/client/plugins";
+import { autumnClient } from "autumn-js/better-auth/client";
+
+export const authClient = createAuthClient({
+  baseURL: "http://localhost:3000",
+  plugins: [
+    organizationClient(),
+    autumnClient(),
+  ],
+});
+```
+
+```typescript components/Billing.tsx
+import { authClient } from "@/lib/auth-client";
+
+export function Billing() {
+  const openPortal = async () => {
+    const result = await authClient.autumn.openCustomerPortal({
+      body: { returnUrl: window.location.href },
+    });
+    
+    if (result.data?.url) {
+      window.location.href = result.data.url;
+    }
+  };
+  
+  return (
+    <button onClick={openPortal}>
+      Manage Billing
+    </button>
+  );
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Hono Adapter" icon="fire" href="/sdks/adapters/hono">
+    Use Autumn with Hono web framework
+  </Card>
+  <Card title="Next.js Adapter" icon="n" href="/sdks/adapters/nextjs">
+    Integrate Autumn with Next.js App Router
+  </Card>
+  <Card title="React Hooks" icon="react" href="/sdks/javascript/react-hooks">
+    Build billing UIs with React hooks
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore all available API endpoints
+  </Card>
+</CardGroup>

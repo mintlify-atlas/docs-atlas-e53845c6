@@ -1,0 +1,159 @@
+---
+title: "Get Invoice"
+openapi: "GET /v1/invoices/{id}"
+---
+
+Retrieve a single invoice by its Stripe invoice ID. This endpoint returns the raw Stripe invoice object.
+
+<Note>
+  This is a read-only endpoint. Invoices are automatically created when customers subscribe to plans or make payments through the billing system.
+</Note>
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  The Stripe invoice ID (e.g., `in_1A2B3C4D5E6F7G8H`)
+</ParamField>
+
+### Response
+
+Returns a Stripe invoice object with the following key properties:
+
+<ResponseField name="id" type="string">
+  The Stripe invoice ID
+</ResponseField>
+
+<ResponseField name="customer" type="string">
+  The Stripe customer ID
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  The invoice status. Possible values: `draft`, `open`, `paid`, `void`, `uncollectible`
+</ResponseField>
+
+<ResponseField name="total" type="number">
+  The total amount in cents
+</ResponseField>
+
+<ResponseField name="currency" type="string">
+  Three-letter ISO currency code (e.g., `usd`)
+</ResponseField>
+
+<ResponseField name="created" type="number">
+  Timestamp when the invoice was created (Unix timestamp in seconds)
+</ResponseField>
+
+<ResponseField name="hosted_invoice_url" type="string | null">
+  URL to the Stripe-hosted invoice page where customers can view and pay
+</ResponseField>
+
+<ResponseField name="lines" type="object">
+  Line items included in the invoice
+  <Expandable title="properties">
+    <ResponseField name="data" type="object[]">
+      Array of invoice line items
+      <Expandable title="properties">
+        <ResponseField name="id" type="string">
+          The line item ID
+        </ResponseField>
+
+        <ResponseField name="description" type="string">
+          Description of the line item
+        </ResponseField>
+
+        <ResponseField name="amount" type="number">
+          Amount in cents
+        </ResponseField>
+
+        <ResponseField name="currency" type="string">
+          Currency code
+        </ResponseField>
+
+        <ResponseField name="quantity" type="number">
+          Quantity of items
+        </ResponseField>
+
+        <ResponseField name="period" type="object">
+          Billing period for this line item
+          <Expandable title="properties">
+            <ResponseField name="start" type="number">
+              Period start timestamp (Unix timestamp in seconds)
+            </ResponseField>
+
+            <ResponseField name="end" type="number">
+              Period end timestamp (Unix timestamp in seconds)
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="subscription" type="string | null">
+  The Stripe subscription ID if this invoice is for a subscription
+</ResponseField>
+
+<ResponseField name="discount" type="object | null">
+  Any discount applied to the invoice
+</ResponseField>
+
+<ResponseExample>
+```json 200
+{
+  "id": "in_1A2B3C4D5E6F7G8H",
+  "object": "invoice",
+  "customer": "cus_123456",
+  "status": "paid",
+  "total": 2999,
+  "currency": "usd",
+  "created": 1759247877,
+  "hosted_invoice_url": "https://invoice.stripe.com/i/acct_123/test_456",
+  "subscription": "sub_1A2B3C4D5E6F7G8H",
+  "lines": {
+    "data": [
+      {
+        "id": "il_1A2B3C4D5E6F7G8H",
+        "description": "Pro Plan × 1",
+        "amount": 2999,
+        "currency": "usd",
+        "quantity": 1,
+        "period": {
+          "start": 1759247877,
+          "end": 1761926277
+        }
+      }
+    ]
+  }
+}
+```
+</ResponseExample>
+
+### Common Use Cases
+
+<CodeGroup>
+
+```typescript Get invoice details
+const invoice = await fetch('https://api.autumn.com/v1/invoices/in_1A2B3C4D5E6F7G8H', {
+  headers: {
+    'Authorization': `Bearer ${process.env.AUTUMN_SECRET_KEY}`
+  }
+});
+
+const data = await invoice.json();
+console.log(`Invoice ${data.id}: ${data.status}`);
+```
+
+```python Retrieve invoice
+import requests
+
+response = requests.get(
+    'https://api.autumn.com/v1/invoices/in_1A2B3C4D5E6F7G8H',
+    headers={'Authorization': f'Bearer {os.environ["AUTUMN_SECRET_KEY"]}'}
+)
+
+invoice = response.json()
+print(f"Invoice {invoice['id']}: {invoice['status']}")
+```
+
+</CodeGroup>

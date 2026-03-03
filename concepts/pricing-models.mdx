@@ -1,0 +1,553 @@
+---
+title: Pricing Models
+description: Understanding different pricing configurations and billing types in Autumn
+---
+
+## Overview
+
+Autumn supports **any pricing model** through its flexible price configuration system. Prices are attached to products and define how customers are charged.
+
+<Info>
+  The same product can have multiple prices (e.g., a base subscription fee + usage-based charges + one-time setup fee).
+</Info>
+
+## Price Types
+
+There are two fundamental price types:
+
+### Fixed Prices
+
+Flat fees that don't depend on usage:
+
+```typescript
+type FixedPriceConfig = {
+  type: "fixed";
+  amount: number;                // Price in cents (e.g., 2900 = $29.00)
+  interval: BillingInterval;     // "month", "year", "one_off", etc.
+  interval_count?: number;       // e.g., 3 for quarterly (every 3 months)
+};
+```
+
+Example - Monthly subscription:
+
+```typescript
+{
+  type: "fixed",
+  amount: 2900,                  // $29.00
+  interval: "month"
+}
+```
+
+Example - Annual subscription with discount:
+
+```typescript
+{
+  type: "fixed",
+  amount: 29900,                 // $299.00 (save $49/year)
+  interval: "year"
+}
+```
+
+Example - One-time setup fee:
+
+```typescript
+{
+  type: "fixed",
+  amount: 9900,                  // $99.00
+  interval: "one_off"
+}
+```
+
+### Usage Prices
+
+Variable pricing based on consumption:
+
+```typescript
+type UsagePriceConfig = {
+  type: "usage";
+  
+  // Feature being metered
+  feature_id: string;
+  internal_feature_id: string;
+  
+  // Pricing tiers
+  usage_tiers: Array<{
+    to: number | "infinite";     // Upper bound for this tier
+    amount: number;              // Price per unit in cents
+    flat_amount?: number;        // Optional flat fee for entering tier
+  }>;
+  
+  // Billing configuration
+  bill_when: "in_advance" | "start_of_period" | "end_of_period";
+  interval: BillingInterval;
+  interval_count?: number;
+  
+  // Optional
+  billing_units?: number;        // Round up to nearest N units
+  should_prorate?: boolean;      // Enable proration for continuous use
+  
+  // Stripe integration (managed by Autumn)
+  stripe_meter_id?: string;
+  stripe_price_id?: string;
+  // ... other Stripe fields
+};
+```
+
+## Billing Intervals
+
+Supported billing intervals:
+
+```typescript
+enum BillingInterval {
+  OneOff = "one_off",            // Single purchase
+  Week = "week",
+  Month = "month",
+  Quarter = "quarter",            // 3 months
+  SemiAnnual = "semi_annual",    // 6 months
+  Year = "year"
+}
+```
+
+Use `interval_count` for custom periods:
+
+```typescript
+// Every 2 weeks
+{ interval: "week", interval_count: 2 }
+
+// Every 3 months (quarterly)
+{ interval: "month", interval_count: 3 }
+
+// Every 18 months
+{ interval: "month", interval_count: 18 }
+```
+
+## Billing Types
+
+Autumn automatically classifies prices into billing types based on their configuration:
+
+```typescript
+enum BillingType {
+  OneOff = "one_off",                    // One-time charge
+  FixedCycle = "fixed_cycle",            // Recurring flat fee
+  
+  UsageInAdvance = "usage_in_advance",   // Prepaid usage (credits)
+  UsageInArrear = "usage_in_arrear",     // Postpaid usage
+  InArrearProrated = "in_arrear_prorated" // Prorated continuous usage
+}
+```
+
+Classification logic:
+
+```typescript
+// One-off
+type: "fixed" && interval: "one_off" → BillingType.OneOff
+
+// Fixed recurring
+type: "fixed" && interval: "month" → BillingType.FixedCycle
+
+// Prepaid usage
+type: "usage" && bill_when: "in_advance" → BillingType.UsageInAdvance
+
+// Postpaid usage
+type: "usage" && bill_when: "end_of_period" → BillingType.UsageInArrear
+
+// Prorated continuous usage
+type: "usage" && bill_when: "end_of_period" && should_prorate: true 
+  → BillingType.InArrearProrated
+```
+
+## Common Pricing Models
+
+### 1. Simple Subscription
+
+Flat monthly or annual fee:
+
+```typescript
+// Pro Plan - $29/month
+{
+  prices: [
+    {
+      config: {
+        type: "fixed",
+        amount: 2900,
+        interval: "month"
+      }
+    }
+  ]
+}
+```
+
+### 2. Tiered Subscription
+
+Multiple plan tiers with different pricing:
+
+```typescript
+// Starter: $9/mo
+{ id: "starter", prices: [{ config: { type: "fixed", amount: 900, interval: "month" } }] }
+
+// Pro: $29/mo  
+{ id: "pro", prices: [{ config: { type: "fixed", amount: 2900, interval: "month" } }] }
+
+// Enterprise: $99/mo
+{ id: "enterprise", prices: [{ config: { type: "fixed", amount: 9900, interval: "month" } }] }
+```
+
+### 3. Usage-Based (Pay As You Go)
+
+Charge based on consumption:
+
+```typescript
+// API Calls - $0.001 per call, billed monthly
+{
+  prices: [
+    {
+      config: {
+        type: "usage",
+        feature_id: "api_calls",
+        bill_when: "end_of_period",
+        interval: "month",
+        usage_tiers: [
+          {
+            to: "infinite",
+            amount: 0.1           // $0.001 per call (in cents)
+          }
+        ]
+      },
+      entitlement_id: "ent_api_calls"
+    }
+  ],
+  entitlements: [
+    {
+      id: "ent_api_calls",
+      feature_id: "api_calls",
+      allowance_type: "metered",
+      allowance: null,            // Unlimited usage
+      interval: "month"
+    }
+  ]
+}
+```
+
+### 4. Prepaid Credits
+
+Customers purchase credits upfront:
+
+```typescript
+// 1,000 API Credits - $10 one-time
+{
+  prices: [
+    {
+      config: {
+        type: "usage",
+        feature_id: "api_calls",
+        bill_when: "in_advance",
+        interval: "one_off",
+        usage_tiers: [
+          {
+            to: "infinite",
+            amount: 0              // Prepaid, no per-use charge
+          }
+        ]
+      },
+      entitlement_id: "ent_api_calls"
+    }
+  ],
+  entitlements: [
+    {
+      id: "ent_api_calls",
+      feature_id: "api_calls",
+      allowance_type: "metered",
+      allowance: 1000,            // 1,000 calls included
+      interval: "one_off"         // Never resets
+    }
+  ]
+}
+```
+
+### 5. Subscription + Overages
+
+Base subscription with included usage, charge for overages:
+
+```typescript
+// Pro Plan: $29/mo + 10,000 API calls, $0.002 per call over limit
+{
+  prices: [
+    // Base subscription
+    {
+      config: {
+        type: "fixed",
+        amount: 2900,
+        interval: "month"
+      }
+    },
+    // Overage pricing
+    {
+      config: {
+        type: "usage",
+        feature_id: "api_calls",
+        bill_when: "end_of_period",
+        interval: "month",
+        usage_tiers: [
+          {
+            to: "infinite",
+            amount: 0.2           // $0.002 per call over limit
+          }
+        ]
+      },
+      entitlement_id: "ent_api_calls"
+    }
+  ],
+  entitlements: [
+    {
+      id: "ent_api_calls",
+      feature_id: "api_calls",
+      allowance_type: "metered",
+      allowance: 10000,           // 10k calls included
+      usage_limit: null,          // No hard limit, allow overages
+      interval: "month"
+    }
+  ]
+}
+```
+
+### 6. Tiered Usage Pricing
+
+Different prices per tier of usage:
+
+```typescript
+// Volume-based pricing:
+// - First 10k calls: $0.01 each
+// - Next 90k calls: $0.005 each  
+// - Above 100k: $0.002 each
+{
+  config: {
+    type: "usage",
+    feature_id: "api_calls",
+    bill_when: "end_of_period",
+    interval: "month",
+    usage_tiers: [
+      {
+        to: 10000,
+        amount: 1               // $0.01
+      },
+      {
+        to: 100000,
+        amount: 0.5             // $0.005
+      },
+      {
+        to: "infinite",
+        amount: 0.2             // $0.002
+      }
+    ]
+  }
+}
+```
+
+<Note>
+  Tiered pricing uses **graduated** tiers by default - each tier applies to the usage in that range. For example, usage of 15,000 calls would be charged as: (10,000 × $0.01) + (5,000 × $0.005) = $125.
+</Note>
+
+### 7. Seat-Based Pricing
+
+Charge per active user/seat:
+
+```typescript
+// Team Plan: $10/seat/month
+{
+  prices: [
+    {
+      config: {
+        type: "usage",
+        feature_id: "seats",
+        bill_when: "end_of_period",
+        interval: "month",
+        should_prorate: true,    // Prorate when adding/removing seats
+        usage_tiers: [
+          {
+            to: "infinite",
+            amount: 1000          // $10 per seat
+          }
+        ]
+      },
+      entitlement_id: "ent_seats"
+    }
+  ],
+  entitlements: [
+    {
+      id: "ent_seats",
+      feature_id: "seats",
+      allowance_type: "metered",
+      allowance: null,            // Unlimited seats (will be tracked)
+      interval: "month"
+    }
+  ]
+}
+```
+
+Track seat usage:
+
+```typescript
+// When user joins
+await track({ featureId: "seats", value: 1 });
+
+// When user leaves  
+await track({ featureId: "seats", value: -1 });
+```
+
+### 8. Flat Tier Fees
+
+Charge a flat fee when entering a tier:
+
+```typescript
+// Data processing:
+// - 0-1GB: Free
+// - 1-10GB: $5 flat + $0.10/GB
+// - 10GB+: $40 flat + $0.05/GB
+{
+  config: {
+    type: "usage",
+    feature_id: "data_processed_gb",
+    bill_when: "end_of_period",
+    interval: "month",
+    usage_tiers: [
+      {
+        to: 1,
+        amount: 0,
+        flat_amount: 0
+      },
+      {
+        to: 10,
+        amount: 10,             // $0.10/GB
+        flat_amount: 500        // $5 flat fee
+      },
+      {
+        to: "infinite",
+        amount: 5,              // $0.05/GB
+        flat_amount: 4000       // $40 flat fee
+      }
+    ]
+  }
+}
+```
+
+### 9. Billing Units
+
+Round usage up to nearest billing unit:
+
+```typescript
+// Compute minutes - bill in 5-minute increments
+{
+  config: {
+    type: "usage",
+    feature_id: "compute_minutes",
+    bill_when: "end_of_period",
+    interval: "month",
+    billing_units: 5,           // Round up to nearest 5 minutes
+    usage_tiers: [
+      {
+        to: "infinite",
+        amount: 10              // $0.10 per 5-min block
+      }
+    ]
+  }
+}
+
+// Usage examples:
+// - 3 minutes → billed as 5 minutes → $0.10
+// - 7 minutes → billed as 10 minutes → $0.20
+// - 12 minutes → billed as 15 minutes → $0.30
+```
+
+## Proration
+
+Control how price changes are handled mid-period:
+
+```typescript
+type ProrationConfig = {
+  on_increase: "prorate_immediately" | "prorate_next_period" | "no_prorate";
+  on_decrease: "prorate_immediately" | "prorate_next_period" | "no_prorate";
+};
+```
+
+Example:
+
+```typescript
+{
+  config: { /* ... */ },
+  proration_config: {
+    on_increase: "prorate_immediately",  // Charge difference immediately
+    on_decrease: "prorate_next_period"   // Credit on next invoice
+  }
+}
+```
+
+## Combining Prices
+
+Products can have multiple prices that work together:
+
+```typescript
+// Complete SaaS pricing example
+{
+  id: "professional",
+  name: "Professional Plan",
+  prices: [
+    // 1. Base subscription
+    {
+      config: {
+        type: "fixed",
+        amount: 4900,
+        interval: "month"
+      }
+    },
+    // 2. Included API calls with overage
+    {
+      config: {
+        type: "usage",
+        feature_id: "api_calls",
+        bill_when: "end_of_period",
+        interval: "month",
+        usage_tiers: [{ to: "infinite", amount: 0.15 }]
+      },
+      entitlement_id: "ent_api"
+    },
+    // 3. Per-seat pricing
+    {
+      config: {
+        type: "usage",
+        feature_id: "seats",
+        bill_when: "end_of_period",
+        interval: "month",
+        should_prorate: true,
+        usage_tiers: [{ to: "infinite", amount: 1500 }]
+      },
+      entitlement_id: "ent_seats"
+    }
+  ],
+  entitlements: [
+    {
+      id: "ent_api",
+      feature_id: "api_calls",
+      allowance: 50000,          // 50k included
+      interval: "month"
+    },
+    {
+      id: "ent_seats",
+      feature_id: "seats",
+      allowance: null,
+      interval: "month"
+    }
+  ]
+}
+```
+
+Monthly invoice breakdown:
+- Base fee: $49.00
+- 3 additional seats × $15.00 = $45.00
+- 12,500 overage calls × $0.0015 = $18.75
+- **Total: $112.75**
+
+## Next Steps
+
+- Learn about [Features](/concepts/features) to understand what you're pricing
+- Explore [Products and Plans](/concepts/products-and-plans) to bundle prices together
+- Read about [Billing Lifecycle](/concepts/billing-lifecycle) to understand when charges occur

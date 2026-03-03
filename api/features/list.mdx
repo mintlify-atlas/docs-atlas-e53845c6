@@ -1,0 +1,229 @@
+---
+title: 'List Features'
+description: 'Retrieve all features in your environment'
+---
+
+## Overview
+
+List all features configured in your Autumn environment. This returns both active and archived features with their full configuration.
+
+## Endpoint
+
+```
+POST /v1/features.list
+```
+
+## Request Body
+
+This endpoint does not require any request parameters.
+
+```json
+{}
+```
+
+## Response
+
+Returns a list of all feature objects.
+
+<ResponseField name="list" type="array">
+  Array of feature objects.
+  
+  <Expandable title="Feature Object Properties">
+    <ResponseField name="id" type="string">
+      The unique identifier for this feature.
+    </ResponseField>
+    
+    <ResponseField name="name" type="string">
+      Human-readable name of the feature.
+    </ResponseField>
+    
+    <ResponseField name="type" type="enum">
+      Feature type: `"boolean"`, `"metered"`, or `"credit_system"`.
+    </ResponseField>
+    
+    <ResponseField name="consumable" type="boolean">
+      Whether the feature is consumable.
+    </ResponseField>
+    
+    <ResponseField name="archived" type="boolean">
+      Whether the feature is archived.
+    </ResponseField>
+    
+    <ResponseField name="display" type="object">
+      Display names for UI rendering.
+    </ResponseField>
+    
+    <ResponseField name="credit_schema" type="array">
+      Credit schema mapping (only for credit_system features).
+    </ResponseField>
+    
+    <ResponseField name="event_names" type="array">
+      Event names that trigger this feature.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```javascript Node.js
+const response = await fetch('https://api.autumn.com/v1/features.list', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({})
+});
+
+const { list } = await response.json();
+console.log('Total features:', list.length);
+console.log(list);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://api.autumn.com/v1/features.list',
+    headers={
+        'Authorization': 'Bearer YOUR_API_KEY',
+        'Content-Type': 'application/json'
+    },
+    json={}
+)
+
+data = response.json()
+print(f"Total features: {len(data['list'])}")
+print(data['list'])
+```
+
+```bash cURL
+curl -X POST https://api.autumn.com/v1/features.list \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+</CodeGroup>
+
+### Response Example
+
+```json Response
+{
+  "list": [
+    {
+      "id": "api-calls",
+      "name": "API Calls",
+      "type": "metered",
+      "consumable": true,
+      "archived": false,
+      "display": {
+        "singular": "API call",
+        "plural": "API calls"
+      }
+    },
+    {
+      "id": "credits",
+      "name": "Credits",
+      "type": "credit_system",
+      "consumable": true,
+      "archived": false,
+      "credit_schema": [
+        {
+          "metered_feature_id": "api-calls",
+          "credit_cost": 1
+        },
+        {
+          "metered_feature_id": "image-generations",
+          "credit_cost": 10
+        }
+      ],
+      "display": {
+        "singular": "credit",
+        "plural": "credits"
+      }
+    },
+    {
+      "id": "advanced-analytics",
+      "name": "Advanced Analytics",
+      "type": "boolean",
+      "consumable": false,
+      "archived": false
+    },
+    {
+      "id": "seats",
+      "name": "Team Seats",
+      "type": "metered",
+      "consumable": false,
+      "archived": false,
+      "display": {
+        "singular": "seat",
+        "plural": "seats"
+      }
+    }
+  ]
+}
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Dashboard Overview" icon="list">
+    Display all available features in your admin dashboard for management and configuration.
+  </Card>
+  
+  <Card title="Pricing Pages" icon="tags">
+    Populate pricing comparison tables by listing all features and their configurations.
+  </Card>
+  
+  <Card title="Feature Discovery" icon="magnifying-glass">
+    Discover what features are available in your environment during development.
+  </Card>
+  
+  <Card title="Configuration Export" icon="download">
+    Export your complete feature configuration for backup or migration purposes.
+  </Card>
+</CardGroup>
+
+## Filtering Results
+
+The list includes both active and archived features. You can filter the results in your application:
+
+```javascript Filter Active Features
+const { list } = await response.json();
+const activeFeatures = list.filter(f => !f.archived);
+```
+
+```javascript Group by Type
+const { list } = await response.json();
+const grouped = {
+  boolean: list.filter(f => f.type === 'boolean'),
+  metered: list.filter(f => f.type === 'metered'),
+  credit_system: list.filter(f => f.type === 'credit_system')
+};
+```
+
+```javascript Find Consumable Features
+const { list } = await response.json();
+const consumableFeatures = list.filter(f => f.consumable);
+```
+
+## Response Format
+
+The response always includes a `list` property containing an array of features. If no features are configured, the array will be empty:
+
+```json Empty Response
+{
+  "list": []
+}
+```
+
+<Info>
+Archived features are included in the response. Filter them out in your application if you only need active features.
+</Info>
+
+<Tip>
+Cache the feature list in your application to reduce API calls. Refresh when you create, update, or delete features.
+</Tip>

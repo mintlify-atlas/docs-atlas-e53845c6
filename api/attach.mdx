@@ -1,0 +1,221 @@
+---
+title: "Attach Plan"
+api: "POST /v1/attach"
+---
+
+Attaches a plan to a customer. Handles new subscriptions, upgrades, downgrades, and add-on products.
+
+## Authentication
+
+Requires a valid API secret key in the `Authorization` header:
+
+```
+Authorization: Bearer YOUR_SECRET_KEY
+```
+
+## Request Body
+
+<ParamField body="customer_id" type="string" required>
+  The ID of the customer.
+</ParamField>
+
+<ParamField body="product_id" type="string" required>
+  The ID of the plan/product to attach to the customer.
+</ParamField>
+
+<ParamField body="entity_id" type="string">
+  The ID of the entity, if attaching the plan to a specific entity.
+</ParamField>
+
+<ParamField body="invoice" type="boolean">
+  If true, creates an invoice for the subscription. Use this for deferred payment flows.
+</ParamField>
+
+<ParamField body="enable_product_immediately" type="boolean">
+  If true, enables the product immediately even if an invoice is pending payment.
+</ParamField>
+
+<ParamField body="finalize_invoice" type="boolean">
+  If true, finalizes the invoice immediately. Only applicable when `invoice` is true.
+</ParamField>
+
+<ParamField body="redirect_mode" type="string" default="always">
+  Controls when to redirect the customer to a checkout page. Options:
+  - `always`: Always redirect to checkout
+  - `if_required`: Only redirect if payment action is required
+  - `never`: Never redirect, handle payment programmatically
+</ParamField>
+
+<ParamField body="success_url" type="string">
+  URL to redirect the customer to after successful payment. Used with `redirect_mode`.
+</ParamField>
+
+<ParamField body="new_billing_subscription" type="boolean">
+  If true, creates a new billing subscription even if the customer has an existing one.
+</ParamField>
+
+<ParamField body="plan_schedule" type="object">
+  Schedule when the plan should become active.
+  <ParamField body="start_at" type="number">
+    Timestamp (in milliseconds) when the plan should start.
+  </ParamField>
+</ParamField>
+
+<ParamField body="discounts" type="array">
+  Array of discount objects to apply to the subscription.
+  <ParamField body="coupon" type="string">
+    Stripe coupon ID to apply.
+  </ParamField>
+  <ParamField body="promotion_code" type="string">
+    Stripe promotion code to apply.
+  </ParamField>
+</ParamField>
+
+<ParamField body="billing_behavior" type="string">
+  Controls billing behavior for plan transitions:
+  - `prorate_immediately` (default): Invoice line items are charged immediately
+  - `next_cycle_only`: Do not create any charges due to the attach
+</ParamField>
+
+<ParamField body="options" type="array">
+  Array of feature quantity overrides.
+  <ParamField body="feature_id" type="string">
+    The feature ID to configure.
+  </ParamField>
+  <ParamField body="quantity" type="number">
+    The quantity for this feature.
+  </ParamField>
+</ParamField>
+
+<ParamField body="free_trial" type="object">
+  Free trial configuration for the subscription.
+  <ParamField body="duration_length" type="number">
+    Length of the trial period.
+  </ParamField>
+  <ParamField body="duration_type" type="string">
+    Unit of the trial period: `day`, `week`, or `month`.
+  </ParamField>
+</ParamField>
+
+<ParamField body="transition_rules" type="object">
+  Rules for how to transition between plans.
+</ParamField>
+
+<ParamField body="subscription_id" type="string">
+  Specific subscription ID to attach the plan to.
+</ParamField>
+
+<ParamField body="custom_line_items" type="array">
+  Array of custom line items to add to the invoice.
+</ParamField>
+
+## Response
+
+<ResponseField name="customer_id" type="string">
+  The ID of the customer.
+</ResponseField>
+
+<ResponseField name="entity_id" type="string">
+  The ID of the entity, if the plan was attached to an entity.
+</ResponseField>
+
+<ResponseField name="invoice" type="object">
+  Invoice details if an invoice was created. Only present when a charge was made.
+  
+  <ResponseField name="status" type="string">
+    The status of the invoice (e.g., 'paid', 'open', 'draft').
+  </ResponseField>
+  
+  <ResponseField name="stripe_id" type="string">
+    The Stripe invoice ID.
+  </ResponseField>
+  
+  <ResponseField name="total" type="number">
+    The total amount of the invoice in cents.
+  </ResponseField>
+  
+  <ResponseField name="currency" type="string">
+    The three-letter ISO currency code (e.g., 'usd').
+  </ResponseField>
+  
+  <ResponseField name="hosted_invoice_url" type="string">
+    URL to the hosted invoice page where the customer can view and pay the invoice.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="payment_url" type="string">
+  URL to redirect the customer to complete payment. Null if no payment action is required.
+</ResponseField>
+
+<ResponseField name="required_action" type="object">
+  Details about any action required to complete the payment. Present when the payment could not be processed automatically.
+  
+  <ResponseField name="code" type="string">
+    The type of action required to complete the payment. One of:
+    - `3ds_required`: 3D Secure authentication is needed
+    - `payment_method_required`: Customer needs to add a payment method
+    - `payment_failed`: Payment was declined
+  </ResponseField>
+  
+  <ResponseField name="reason" type="string">
+    A human-readable explanation of why this action is required.
+  </ResponseField>
+</ResponseField>
+
+## Example Request
+
+```bash
+curl -X POST https://api.autumnai.com/v1/attach \
+  -H "Authorization: Bearer YOUR_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "cus_123",
+    "product_id": "pro_plan"
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "customer_id": "cus_123",
+  "entity_id": null,
+  "invoice": {
+    "status": "paid",
+    "stripe_id": "in_1234567890",
+    "total": 4900,
+    "currency": "usd",
+    "hosted_invoice_url": "https://invoice.stripe.com/i/acct_xxx/test_xxx"
+  },
+  "payment_url": null,
+  "required_action": null
+}
+```
+
+## Error Responses
+
+<ResponseField name="error" type="object">
+  <ResponseField name="message" type="string">
+    Human-readable error message.
+  </ResponseField>
+  
+  <ResponseField name="code" type="string">
+    Machine-readable error code. Common codes:
+    - `customer_not_found`: The specified customer doesn't exist
+    - `product_not_found`: The specified product doesn't exist
+    - `invalid_inputs`: Request validation failed
+    - `stripe_error`: Payment provider error occurred
+    - `customer_has_no_payment_method`: Customer needs to add a payment method
+  </ResponseField>
+</ResponseField>
+
+### Example Error Response
+
+```json
+{
+  "error": {
+    "message": "Customer not found",
+    "code": "customer_not_found"
+  }
+}
+```

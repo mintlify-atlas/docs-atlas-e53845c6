@@ -1,0 +1,306 @@
+---
+title: "Track Usage"
+api: "POST /v1/balances.track"
+---
+
+Records usage for a customer feature and returns updated balances. Use this after an action happens to decrement usage, or send a negative value to credit balance back.
+
+## Authentication
+
+Requires a valid API secret key in the `Authorization` header:
+
+```
+Authorization: Bearer YOUR_SECRET_KEY
+```
+
+## Request Body
+
+<ParamField body="customer_id" type="string" required>
+  The ID of the customer.
+</ParamField>
+
+<ParamField body="feature_id" type="string">
+  The ID of the feature to track usage for. Required if `event_name` is not provided.
+</ParamField>
+
+<ParamField body="event_name" type="string">
+  Event name to track usage for. Use instead of `feature_id` when multiple features should be tracked from a single event. Either `feature_id` or `event_name` must be provided.
+</ParamField>
+
+<ParamField body="entity_id" type="string">
+  The ID of the entity for entity-scoped balances (e.g., per-seat limits).
+</ParamField>
+
+<ParamField body="value" type="number" default={1}>
+  The amount of usage to record. Use negative values to credit balance (e.g., when removing a seat).
+</ParamField>
+
+<ParamField body="properties" type="object">
+  Additional properties to attach to this usage event. Accepts any key-value pairs.
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="skip_cache" type="boolean">
+  If true, bypasses the cache and fetches fresh data.
+</ParamField>
+
+<ParamField query="expand" type="string">
+  Comma-separated list of fields to expand. Available options:
+  - `balance.feature`: Include full feature object in the balance response
+</ParamField>
+
+## Response
+
+<ResponseField name="customer_id" type="string">
+  The ID of the customer whose usage was tracked.
+</ResponseField>
+
+<ResponseField name="entity_id" type="string">
+  The ID of the entity, if entity-scoped tracking was performed.
+</ResponseField>
+
+<ResponseField name="event_name" type="string">
+  The event name that was tracked, if `event_name` was used instead of `feature_id`.
+</ResponseField>
+
+<ResponseField name="value" type="number">
+  The amount of usage that was recorded.
+</ResponseField>
+
+<ResponseField name="balance" type="object">
+  The updated balance for the tracked feature. Null if tracking by `event_name` that affects multiple features.
+  
+  <ResponseField name="feature_id" type="string">
+    The feature ID this balance is for.
+  </ResponseField>
+  
+  <ResponseField name="granted" type="number">
+    Total balance granted (included + prepaid).
+  </ResponseField>
+  
+  <ResponseField name="remaining" type="number">
+    Remaining balance available for use.
+  </ResponseField>
+  
+  <ResponseField name="usage" type="number">
+    Total usage consumed in the current period.
+  </ResponseField>
+  
+  <ResponseField name="unlimited" type="boolean">
+    Whether this feature has unlimited usage.
+  </ResponseField>
+  
+  <ResponseField name="overage_allowed" type="boolean">
+    Whether usage beyond the granted balance is allowed (with overage charges).
+  </ResponseField>
+  
+  <ResponseField name="max_purchase" type="number">
+    Maximum quantity that can be purchased as a top-up, or null for unlimited.
+  </ResponseField>
+  
+  <ResponseField name="next_reset_at" type="number">
+    Timestamp when the balance will reset, or null for no reset.
+  </ResponseField>
+  
+  <ResponseField name="breakdown" type="array">
+    Detailed breakdown of balance sources when stacking multiple plans or grants.
+    
+    <ResponseField name="id" type="string">
+      The unique identifier for this balance breakdown.
+    </ResponseField>
+    
+    <ResponseField name="plan_id" type="string">
+      The plan ID this balance originates from, or null for standalone balances.
+    </ResponseField>
+    
+    <ResponseField name="included_grant" type="number">
+      Amount granted from the plan's included usage.
+    </ResponseField>
+    
+    <ResponseField name="prepaid_grant" type="number">
+      Amount granted from prepaid purchases or top-ups.
+    </ResponseField>
+    
+    <ResponseField name="remaining" type="number">
+      Remaining balance available for use.
+    </ResponseField>
+    
+    <ResponseField name="usage" type="number">
+      Amount consumed in the current period.
+    </ResponseField>
+    
+    <ResponseField name="unlimited" type="boolean">
+      Whether this balance has unlimited usage.
+    </ResponseField>
+    
+    <ResponseField name="reset" type="object">
+      Reset configuration for this balance, or null if no reset.
+      
+      <ResponseField name="interval" type="string">
+        Reset interval: `day`, `week`, `month`, or `year`.
+      </ResponseField>
+      
+      <ResponseField name="resets_at" type="number">
+        Timestamp when the next reset occurs.
+      </ResponseField>
+    </ResponseField>
+    
+    <ResponseField name="price" type="object">
+      Pricing configuration if this balance has usage-based pricing.
+    </ResponseField>
+    
+    <ResponseField name="expires_at" type="number">
+      Timestamp when this balance expires, or null for no expiration.
+    </ResponseField>
+  </ResponseField>
+  
+  <ResponseField name="feature" type="object">
+    The full feature object if `expand=balance.feature` was used.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="balances" type="object">
+  Map of feature_id to updated balance when tracking by `event_name` affects multiple features. Only present when using `event_name`.
+</ResponseField>
+
+## Example Request
+
+### Track by Feature ID
+
+```bash
+curl -X POST https://api.autumnai.com/v1/balances.track \
+  -H "Authorization: Bearer YOUR_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "cus_123",
+    "feature_id": "messages",
+    "value": 1
+  }'
+```
+
+### Track by Event Name
+
+```bash
+curl -X POST https://api.autumnai.com/v1/balances.track \
+  -H "Authorization: Bearer YOUR_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "cus_123",
+    "event_name": "ai_chat_request",
+    "value": 1
+  }'
+```
+
+### Credit Balance (Negative Value)
+
+```bash
+curl -X POST https://api.autumnai.com/v1/balances.track \
+  -H "Authorization: Bearer YOUR_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "cus_123",
+    "feature_id": "seats",
+    "value": -1
+  }'
+```
+
+## Example Response
+
+### Single Feature Response
+
+```json
+{
+  "customer_id": "cus_123",
+  "value": 1,
+  "balance": {
+    "feature_id": "messages",
+    "granted": 100,
+    "remaining": 72,
+    "usage": 28,
+    "unlimited": false,
+    "overage_allowed": false,
+    "max_purchase": null,
+    "next_reset_at": 1773851121437,
+    "breakdown": [
+      {
+        "id": "cus_ent_39qmLooixXLAqMywgXywjAz96rV",
+        "plan_id": "pro_plan",
+        "included_grant": 100,
+        "prepaid_grant": 0,
+        "remaining": 72,
+        "usage": 28,
+        "unlimited": false,
+        "reset": {
+          "interval": "month",
+          "resets_at": 1773851121437
+        },
+        "price": null,
+        "expires_at": null
+      }
+    ]
+  }
+}
+```
+
+### Multi-Feature Response (Event Name)
+
+```json
+{
+  "customer_id": "cus_123",
+  "event_name": "ai_chat_request",
+  "value": 1,
+  "balance": null,
+  "balances": {
+    "ai_tokens": {
+      "feature_id": "ai_tokens",
+      "granted": 1000,
+      "remaining": 950,
+      "usage": 50,
+      "unlimited": false,
+      "overage_allowed": true,
+      "max_purchase": null,
+      "next_reset_at": 1773851121437
+    },
+    "ai_requests": {
+      "feature_id": "ai_requests",
+      "granted": 100,
+      "remaining": 85,
+      "usage": 15,
+      "unlimited": false,
+      "overage_allowed": false,
+      "max_purchase": null,
+      "next_reset_at": 1773851121437
+    }
+  }
+}
+```
+
+## Error Responses
+
+<ResponseField name="error" type="object">
+  <ResponseField name="message" type="string">
+    Human-readable error message.
+  </ResponseField>
+  
+  <ResponseField name="code" type="string">
+    Machine-readable error code. Common codes:
+    - `customer_not_found`: The specified customer doesn't exist
+    - `feature_not_found`: The specified feature doesn't exist
+    - `invalid_inputs`: Request validation failed (e.g., both feature_id and event_name provided)
+    - `entity_not_found`: The specified entity doesn't exist
+    - `insufficient_balance`: Customer doesn't have enough balance for the usage amount
+    - `invalid_event_name`: The specified event name is not configured
+  </ResponseField>
+</ResponseField>
+
+### Example Error Response
+
+```json
+{
+  "error": {
+    "message": "Either feature_id or event_name must be provided",
+    "code": "invalid_inputs"
+  }
+}
+```

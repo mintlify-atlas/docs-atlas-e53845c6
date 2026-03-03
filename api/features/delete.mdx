@@ -1,0 +1,228 @@
+---
+title: 'Delete Feature'
+description: 'Permanently remove a feature from your environment'
+---
+
+## Overview
+
+Delete a feature by its ID. Features that are used in products or by customers cannot be deleted - archive them instead.
+
+## Endpoint
+
+```
+POST /v1/features.delete
+```
+
+## Request Body
+
+<ParamField path="feature_id" type="string" required>
+  The unique identifier of the feature to delete.
+  
+  **Example:** `"old-feature"`, `"test-feature"`
+</ParamField>
+
+## Response
+
+Returns a success flag confirming the deletion.
+
+<ResponseField name="success" type="boolean">
+  Whether the feature was successfully deleted.
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```javascript Node.js
+const response = await fetch('https://api.autumn.com/v1/features.delete', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    feature_id: 'old-feature'
+  })
+});
+
+const result = await response.json();
+console.log(result); // { success: true }
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://api.autumn.com/v1/features.delete',
+    headers={
+        'Authorization': 'Bearer YOUR_API_KEY',
+        'Content-Type': 'application/json'
+    },
+    json={'feature_id': 'old-feature'}
+)
+
+result = response.json()
+print(result)  # {'success': True}
+```
+
+```bash cURL
+curl -X POST https://api.autumn.com/v1/features.delete \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"feature_id": "old-feature"}'
+```
+
+</CodeGroup>
+
+### Delete an Unused Feature
+
+```json Request
+{
+  "feature_id": "old-feature"
+}
+```
+
+```json Response
+{
+  "success": true
+}
+```
+
+## Important Restrictions
+
+<Warning>
+**Cannot Delete Features in Use**
+
+You cannot delete a feature if:
+- It's included in any product or plan
+- It's being used by any customer
+- It's referenced in a credit system's `credit_schema`
+
+Archive the feature instead using the [Update Feature](/api/features/update) endpoint.
+</Warning>
+
+<Warning>
+**Deletion is Permanent**
+
+Deleting a feature is irreversible. All configuration and metadata will be permanently removed. Consider archiving instead if you might need the feature later.
+</Warning>
+
+## When to Delete vs Archive
+
+### Delete When:
+
+- The feature was created for testing and is not in use
+- You made a mistake during feature creation
+- The feature was never added to any products
+- You're cleaning up duplicate or unused features
+
+### Archive When:
+
+- The feature is being used by any customers
+- The feature is part of any product or plan
+- You want to deprecate a feature but maintain backward compatibility
+- You might need the feature configuration later
+
+## Workflow Example
+
+```javascript Safe Delete Workflow
+// 1. First, try to get the feature
+const getResponse = await fetch('https://api.autumn.com/v1/features.get', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({ feature_id: 'old-feature' })
+});
+
+const feature = await getResponse.json();
+
+// 2. Check if it's already archived
+if (feature.archived) {
+  console.log('Feature is archived, safe to delete if not in use');
+}
+
+// 3. Attempt deletion
+try {
+  const deleteResponse = await fetch('https://api.autumn.com/v1/features.delete', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ feature_id: 'old-feature' })
+  });
+  
+  const result = await deleteResponse.json();
+  
+  if (result.success) {
+    console.log('Feature deleted successfully');
+  }
+} catch (error) {
+  console.error('Cannot delete feature - it may be in use');
+  
+  // 4. Archive instead if deletion fails
+  const archiveResponse = await fetch('https://api.autumn.com/v1/features.update', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      feature_id: 'old-feature',
+      archived: true
+    })
+  });
+  
+  console.log('Feature archived instead');
+}
+```
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Clean Up Test Features" icon="broom">
+    Remove features created during development and testing that are no longer needed.
+  </Card>
+  
+  <Card title="Fix Mistakes" icon="rotate-left">
+    Delete incorrectly configured features that haven't been used yet.
+  </Card>
+  
+  <Card title="Remove Duplicates" icon="copy">
+    Clean up duplicate features created by mistake.
+  </Card>
+  
+  <Card title="Simplify Configuration" icon="minimize">
+    Remove unused features to keep your feature list clean and manageable.
+  </Card>
+</CardGroup>
+
+## Error Responses
+
+<ResponseField name="code" type="string">
+  Error code identifying the type of error.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Human-readable error message.
+</ResponseField>
+
+### Common Errors
+
+- `feature_not_found` - No feature exists with this ID
+- `feature_in_use` - Cannot delete because it's used in products or by customers
+- `feature_referenced` - Cannot delete because it's referenced in a credit system
+- `invalid_feature_id` - Feature ID format is invalid
+
+<Tip>
+If you receive a `feature_in_use` error, use the Update Feature endpoint to archive it instead:
+
+```json
+{
+  "feature_id": "old-feature",
+  "archived": true
+}
+```
+</Tip>

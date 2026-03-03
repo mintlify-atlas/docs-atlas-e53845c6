@@ -1,0 +1,558 @@
+---
+title: 'Webhooks'
+description: 'Listen for real-time events from Autumn to keep your app in sync with subscription and usage changes'
+---
+
+## Overview
+
+Autumn sends webhooks to notify your application of important events like:
+
+- Subscription changes (new, upgrade, downgrade, cancel)
+- Usage threshold alerts
+- Payment events
+- Balance updates
+
+Webhooks are powered by [Svix](https://www.svix.com/) and include built-in signature verification, automatic retries, and a testing playground.
+
+## Setup
+
+### 1. Create a Webhook Endpoint
+
+Create an endpoint in your application to receive webhooks:
+
+<CodeGroup>
+
+```typescript Next.js App Router
+// app/api/webhooks/autumn/route.ts
+import { headers } from 'next/headers';
+import { Webhook } from 'svix';
+
+export async function POST(req: Request) {
+  const payload = await req.text();
+  const headersList = headers();
+  
+  const svixId = headersList.get('svix-id');
+  const svixTimestamp = headersList.get('svix-timestamp');
+  const svixSignature = headersList.get('svix-signature');
+  
+  // Verify webhook signature
+  const wh = new Webhook(process.env.AUTUMN_WEBHOOK_SECRET!);
+  
+  let event;
+  try {
+    event = wh.verify(payload, {
+      'svix-id': svixId!,
+      'svix-timestamp': svixTimestamp!,
+      'svix-signature': svixSignature!,
+    });
+  } catch (err) {
+    console.error('Webhook verification failed:', err);
+    return new Response('Invalid signature', { status: 400 });
+  }
+  
+  // Handle the event
+  switch (event.type) {
+    case 'customer.products.updated':
+      await handleProductUpdate(event.data);
+      break;
+    case 'customer.threshold_reached':
+      await handleThresholdReached(event.data);
+      break;
+  }
+  
+  return new Response('Webhook processed', { status: 200 });
+}
+```
+
+```typescript Express.js
+import express from 'express';
+import { Webhook } from 'svix';
+
+const app = express();
+
+app.post(
+  '/webhooks/autumn',
+  express.raw({ type: 'application/json' }),
+  async (req, res) => {
+    const payload = req.body.toString();
+    const headers = req.headers;
+    
+    // Verify webhook signature
+    const wh = new Webhook(process.env.AUTUMN_WEBHOOK_SECRET!);
+    
+    let event;
+    try {
+      event = wh.verify(payload, {
+        'svix-id': headers['svix-id'] as string,
+        'svix-timestamp': headers['svix-timestamp'] as string,
+        'svix-signature': headers['svix-signature'] as string,
+      });
+    } catch (err) {
+      console.error('Webhook verification failed:', err);
+      return res.status(400).send('Invalid signature');
+    }
+    
+    // Handle the event
+    switch (event.type) {
+      case 'customer.products.updated':
+        await handleProductUpdate(event.data);
+        break;
+      case 'customer.threshold_reached':
+        await handleThresholdReached(event.data);
+        break;
+    }
+    
+    res.status(200).send('Webhook processed');
+  }
+);
+```
+
+```python Flask
+from flask import Flask, request
+from svix.webhooks import Webhook
+import os
+
+app = Flask(__name__)
+
+@app.route('/webhooks/autumn', methods=['POST'])
+def autumn_webhook():
+    payload = request.data.decode('utf-8')
+    headers = request.headers
+    
+    # Verify webhook signature
+    wh = Webhook(os.environ['AUTUMN_WEBHOOK_SECRET'])
+    
+    try:
+        event = wh.verify(payload, {
+            'svix-id': headers.get('svix-id'),
+            'svix-timestamp': headers.get('svix-timestamp'),
+            'svix-signature': headers.get('svix-signature'),
+        })
+    except Exception as e:
+        print(f'Webhook verification failed: {e}')
+        return 'Invalid signature', 400
+    
+    # Handle the event
+    if event['type'] == 'customer.products.updated':
+        handle_product_update(event['data'])
+    elif event['type'] == 'customer.threshold_reached':
+        handle_threshold_reached(event['data'])
+    
+    return 'Webhook processed', 200
+```
+
+</CodeGroup>
+
+### 2. Configure Webhook in Dashboard
+
+1. Go to the Autumn dashboard → **Settings** → **Webhooks**
+2. Click **Add Endpoint**
+3. Enter your webhook URL (e.g., `https://api.yourapp.com/webhooks/autumn`)
+4. Select which events to receive
+5. Save and copy the **Signing Secret** to your environment variables
+
+<Note>
+  For local development, use tools like [ngrok](https://ngrok.com/) or [Svix Play](https://www.svix.com/play/) to expose your local server.
+</Note>
+
+## Event Types
+
+### customer.products.updated
+
+Sent when a customer's product subscription changes.
+
+**Scenarios:**
+- `new` - Customer subscribed to a new product
+- `upgrade` - Customer upgraded to a higher tier
+- `downgrade` - Customer downgraded to a lower tier
+- `cancel` - Customer canceled their subscription
+
+**Payload:**
+```typescript
+{
+  type: "customer.products.updated",
+  data: {
+    scenario: "new" | "upgrade" | "downgrade" | "cancel",
+    customer: {
+      id: string,
+      email: string,
+      name: string,
+      // ... full customer object
+    },
+    updated_product: {
+      id: string,
+      name: string,
+      status: "active" | "scheduled" | "canceling",
+      // ... full product object
+    },
+    entity?: {
+      id: string,
+      name: string
+    }
+  }
+}
+```
+
+**Example Handler:**
+
+<CodeGroup>
+
+```typescript TypeScript
+async function handleProductUpdate(data: CustomerProductsUpdatedData) {
+  const { scenario, customer, updated_product } = data;
+  
+  switch (scenario) {
+    case 'new':
+      // Customer subscribed to new product
+      await sendWelcomeEmail(customer.email, updated_product.name);
+      await syncToDatabase({ customerId: customer.id, product: updated_product });
+      break;
+      
+    case 'upgrade':
+      // Customer upgraded
+      await sendUpgradeEmail(customer.email, updated_product.name);
+      await unlockPremiumFeatures(customer.id);
+      break;
+      
+    case 'downgrade':
+      // Customer downgraded
+      await sendDowngradeEmail(customer.email, updated_product.name);
+      await restrictFeatures(customer.id, updated_product);
+      break;
+      
+    case 'cancel':
+      // Customer canceled
+      await sendCancellationEmail(customer.email);
+      await scheduleDataRetention(customer.id);
+      break;
+  }
+}
+```
+
+```python Python
+def handle_product_update(data):
+    scenario = data['scenario']
+    customer = data['customer']
+    product = data['updated_product']
+    
+    if scenario == 'new':
+        # Customer subscribed
+        send_welcome_email(customer['email'], product['name'])
+        sync_to_database(customer['id'], product)
+    
+    elif scenario == 'upgrade':
+        # Customer upgraded
+        send_upgrade_email(customer['email'], product['name'])
+        unlock_premium_features(customer['id'])
+    
+    elif scenario == 'downgrade':
+        # Customer downgraded
+        send_downgrade_email(customer['email'])
+        restrict_features(customer['id'], product)
+    
+    elif scenario == 'cancel':
+        # Customer canceled
+        send_cancellation_email(customer['email'])
+        schedule_data_retention(customer['id'])
+```
+
+</CodeGroup>
+
+### customer.threshold_reached
+
+Sent when a customer reaches a usage threshold (e.g., 80% of their limit).
+
+**Payload:**
+```typescript
+{
+  type: "customer.threshold_reached",
+  data: {
+    customer: {
+      id: string,
+      email: string,
+      name: string
+    },
+    feature: {
+      id: string,
+      name: string
+    },
+    threshold: number,        // Threshold percentage (e.g., 80)
+    usage: number,            // Current usage
+    limit: number,            // Total limit
+    remaining: number         // Amount remaining
+  }
+}
+```
+
+**Example Handler:**
+
+<CodeGroup>
+
+```typescript TypeScript
+async function handleThresholdReached(data: ThresholdReachedData) {
+  const { customer, feature, threshold, usage, limit, remaining } = data;
+  
+  // Send warning email
+  await sendEmail({
+    to: customer.email,
+    subject: `${feature.name} usage at ${threshold}%`,
+    body: `
+      You've used ${usage} of ${limit} ${feature.name}.
+      ${remaining} remaining.
+      
+      Upgrade now to get more: https://yourapp.com/upgrade
+    `
+  });
+  
+  // Send in-app notification
+  await createNotification({
+    customerId: customer.id,
+    title: `${feature.name} limit approaching`,
+    message: `${remaining} ${feature.name} remaining`,
+    action: { label: "Upgrade", url: "/upgrade" }
+  });
+}
+```
+
+```python Python
+def handle_threshold_reached(data):
+    customer = data['customer']
+    feature = data['feature']
+    threshold = data['threshold']
+    usage = data['usage']
+    limit = data['limit']
+    remaining = data['remaining']
+    
+    # Send warning email
+    send_email(
+        to=customer['email'],
+        subject=f"{feature['name']} usage at {threshold}%",
+        body=f"""
+        You've used {usage} of {limit} {feature['name']}.
+        {remaining} remaining.
+        
+        Upgrade now: https://yourapp.com/upgrade
+        """
+    )
+    
+    # Create in-app notification
+    create_notification(
+        customer_id=customer['id'],
+        title=f"{feature['name']} limit approaching",
+        message=f"{remaining} {feature['name']} remaining"
+    )
+```
+
+</CodeGroup>
+
+## Security
+
+### Verify Webhook Signatures
+
+Always verify webhook signatures to ensure requests are from Autumn:
+
+<CodeGroup>
+
+```typescript TypeScript
+import { Webhook } from 'svix';
+
+const wh = new Webhook(process.env.AUTUMN_WEBHOOK_SECRET!);
+
+try {
+  const event = wh.verify(payload, headers);
+  // Event is verified, safe to process
+} catch (err) {
+  // Invalid signature - reject the request
+  throw new Error('Invalid webhook signature');
+}
+```
+
+```python Python
+from svix.webhooks import Webhook
+
+wh = Webhook(os.environ['AUTUMN_WEBHOOK_SECRET'])
+
+try:
+    event = wh.verify(payload, headers)
+    # Event is verified
+except Exception:
+    # Invalid signature
+    raise ValueError('Invalid webhook signature')
+```
+
+</CodeGroup>
+
+### Use HTTPS
+
+Webhook endpoints must use HTTPS in production. Svix will reject HTTP endpoints.
+
+### Implement Idempotency
+
+Webhooks may be delivered more than once. Use the `svix-id` header as an idempotency key:
+
+```typescript
+const eventId = headers['svix-id'];
+
+// Check if already processed
+if (await hasProcessedEvent(eventId)) {
+  return new Response('Already processed', { status: 200 });
+}
+
+// Process event
+await handleEvent(event);
+
+// Mark as processed
+await markEventProcessed(eventId);
+```
+
+## Testing
+
+### Local Testing with Svix Play
+
+1. Go to [Svix Play](https://www.svix.com/play/)
+2. Generate a webhook URL
+3. Add it as a webhook endpoint in Autumn dashboard
+4. Trigger events (attach, track, etc.) and see them arrive in real-time
+
+### Send Test Events
+
+Use the Autumn dashboard to send test webhook events:
+
+1. Go to **Settings** → **Webhooks**
+2. Click on your endpoint
+3. Click **Send Example** and select an event type
+
+### CLI Testing
+
+```bash
+# Install Svix CLI
+npm install -g svix-cli
+
+# Listen for webhooks locally
+svix listen http://localhost:3000/webhooks/autumn
+```
+
+## Retries and Reliability
+
+Autumn automatically retries failed webhook deliveries:
+
+- **Retry Schedule**: Exponential backoff (1min, 5min, 30min, 2hr, 5hr, 10hr, 10hr)
+- **Success Criteria**: HTTP 200-299 response
+- **Timeout**: 15 seconds per attempt
+- **Total Attempts**: Up to 7 retries over ~24 hours
+
+### Return Proper Status Codes
+
+```typescript
+// ✅ Success - webhook processed
+return new Response('OK', { status: 200 });
+
+// ✅ Will retry - temporary error
+return new Response('Database unavailable', { status: 503 });
+
+// ❌ Won't retry - permanent error
+return new Response('Invalid event type', { status: 400 });
+```
+
+## Debugging
+
+### View Webhook Logs
+
+1. Go to **Settings** → **Webhooks** in Autumn dashboard
+2. Click on your endpoint
+3. View delivery attempts, status codes, and response bodies
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Signature verification fails">
+    - Check that you're using the correct webhook secret
+    - Ensure you're passing the raw request body (not parsed JSON)
+    - Verify all three Svix headers are present: `svix-id`, `svix-timestamp`, `svix-signature`
+  </Accordion>
+  
+  <Accordion title="Webhooks not arriving">
+    - Verify your endpoint is publicly accessible (use ngrok for local dev)
+    - Check that the endpoint uses HTTPS (required in production)
+    - Ensure you've selected the correct events in webhook configuration
+    - Check webhook logs in dashboard for delivery failures
+  </Accordion>
+  
+  <Accordion title="Duplicate webhook deliveries">
+    - This is normal behavior - implement idempotency using `svix-id` header
+    - Check your handler is returning 200 on success
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<Steps>
+  <Step title="Process webhooks asynchronously">
+    Return 200 immediately and process events in a background job:
+    
+    ```typescript
+    app.post('/webhooks/autumn', async (req, res) => {
+      const event = await verifyWebhook(req);
+      
+      // Queue for processing
+      await queue.add('process-webhook', event);
+      
+      // Return immediately
+      res.status(200).send('Queued');
+    });
+    ```
+  </Step>
+  
+  <Step title="Implement idempotency">
+    Use `svix-id` to prevent duplicate processing:
+    
+    ```typescript
+    const eventId = headers['svix-id'];
+    if (await cache.get(eventId)) {
+      return res.status(200).send('Already processed');
+    }
+    await processEvent(event);
+    await cache.set(eventId, true, 86400); // 24hr TTL
+    ```
+  </Step>
+  
+  <Step title="Monitor webhook health">
+    Track webhook failures and alert on repeated errors:
+    
+    ```typescript
+    if (failureCount > 3) {
+      await alertOncall('Webhook failures detected');
+    }
+    ```
+  </Step>
+  
+  <Step title="Version your webhook handlers">
+    Plan for schema changes by versioning handlers:
+    
+    ```typescript
+    const handlers = {
+      'customer.products.updated': {
+        v1: handleProductUpdateV1,
+        v2: handleProductUpdateV2,
+      }
+    };
+    ```
+  </Step>
+</Steps>
+
+## Related Resources
+
+- [Svix Documentation](https://docs.svix.com/) - Learn more about webhook infrastructure
+- [Attach Endpoint](/integration/attach) - Trigger product update webhooks
+- [Track Endpoint](/integration/track) - Configure threshold webhooks
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore all available endpoints
+  </Card>
+  <Card title="SDK Documentation" icon="book" href="/sdks/javascript/installation">
+    Learn how to use Autumn SDKs
+  </Card>
+</CardGroup>

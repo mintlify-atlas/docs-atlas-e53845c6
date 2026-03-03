@@ -1,0 +1,235 @@
+---
+title: 'List Events'
+openapi: 'POST /v1/events.list'
+---
+
+## Overview
+
+The List Events endpoint allows you to retrieve usage events for your organization. Events represent trackable actions or usage metrics tied to specific features and customers.
+
+## Use Cases
+
+- **Audit trails**: Review historical usage events for compliance or debugging
+- **Customer analytics**: Analyze individual customer behavior and feature usage
+- **Usage reporting**: Generate detailed reports of feature consumption
+- **Debugging**: Investigate specific events by timestamp or customer
+
+## Filtering Options
+
+### By Customer
+
+Filter events for a specific customer using the `customer_id` parameter:
+
+```json
+{
+  "customer_id": "cus_123",
+  "limit": 50
+}
+```
+
+### By Feature
+
+Filter events for one or more features using the `feature_id` parameter:
+
+```json Single Feature
+{
+  "feature_id": "api_calls",
+  "limit": 100
+}
+```
+
+```json Multiple Features
+{
+  "feature_id": ["api_calls", "messages", "storage"],
+  "limit": 100
+}
+```
+
+### By Time Range
+
+Filter events within a custom date range using the `custom_range` parameter with epoch milliseconds:
+
+```json
+{
+  "customer_id": "cus_123",
+  "custom_range": {
+    "start": 1704067200000,
+    "end": 1706745600000
+  }
+}
+```
+
+<Tip>
+To get epoch milliseconds in JavaScript: `new Date('2024-01-01').getTime()`
+</Tip>
+
+### Combined Filters
+
+You can combine multiple filters for precise queries:
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": "api_calls",
+  "custom_range": {
+    "start": 1704067200000,
+    "end": 1706745600000
+  },
+  "limit": 50,
+  "offset": 0
+}
+```
+
+## Pagination
+
+The endpoint supports offset-based pagination:
+
+- **limit**: Number of events to return (default: 100)
+- **offset**: Number of events to skip (default: 0)
+- **has_more**: Boolean indicating if more events are available
+- **total**: Total count of events matching the filters
+
+### Example: Paginating Through Results
+
+```javascript
+let offset = 0;
+const limit = 100;
+let hasMore = true;
+
+while (hasMore) {
+  const response = await fetch('https://api.autumn.com/v1/events.list', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer YOUR_API_KEY',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      customer_id: 'cus_123',
+      limit,
+      offset
+    })
+  });
+  
+  const data = await response.json();
+  
+  // Process events
+  data.list.forEach(event => {
+    console.log(event.id, event.feature_id, event.value);
+  });
+  
+  hasMore = data.has_more;
+  offset += limit;
+}
+```
+
+## Response Structure
+
+Each event in the response includes:
+
+- **id**: Unique event identifier (KSUID format)
+- **timestamp**: When the event occurred (epoch milliseconds)
+- **feature_id**: The feature this event belongs to
+- **customer_id**: The customer who triggered the event
+- **value**: Numeric value or count for the event
+- **properties**: Additional event metadata (JSONB object)
+
+### Example Response
+
+```json
+{
+  "list": [
+    {
+      "id": "evt_36xpk2TmuQX5zVPPQ8tCtnR5Weg",
+      "timestamp": 1765958215459,
+      "feature_id": "credits",
+      "customer_id": "0pCIbS4AMAFDB1iBMNhARWZt2gDtVwQx",
+      "value": 30,
+      "properties": {}
+    },
+    {
+      "id": "evt_36xmHxxjAkqxufDf9yHAPNfRrLM",
+      "timestamp": 1765956512057,
+      "feature_id": "credits",
+      "customer_id": "0pCIbS4AMAFDB1iBMNhARWZt2gDtVwQx",
+      "value": 49,
+      "properties": {}
+    }
+  ],
+  "total": 2,
+  "has_more": false,
+  "offset": 0,
+  "limit": 100
+}
+```
+
+## Common Queries
+
+### Get Recent Events for a Customer
+
+```json
+{
+  "customer_id": "cus_123",
+  "limit": 10
+}
+```
+
+### Get All Events for a Feature This Month
+
+```javascript
+const startOfMonth = new Date();
+startOfMonth.setDate(1);
+startOfMonth.setHours(0, 0, 0, 0);
+
+const request = {
+  feature_id: "api_calls",
+  custom_range: {
+    start: startOfMonth.getTime(),
+    end: Date.now()
+  },
+  limit: 100
+};
+```
+
+### Get Events with Properties
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": "api_calls",
+  "limit": 50
+}
+```
+
+Events with `properties` can include custom metadata like:
+
+```json
+{
+  "id": "evt_xyz",
+  "feature_id": "api_calls",
+  "customer_id": "cus_123",
+  "value": 1,
+  "properties": {
+    "model": "gpt-4",
+    "region": "us-east-1",
+    "endpoint": "/v1/chat"
+  }
+}
+```
+
+## Best Practices
+
+<Card title="Use Pagination" icon="list">
+  Always paginate when retrieving large event sets to avoid timeouts and reduce memory usage.
+</Card>
+
+<Card title="Filter by Time Range" icon="clock">
+  Use `custom_range` to limit results to relevant time periods, improving query performance.
+</Card>
+
+<Card title="Combine Filters" icon="filter">
+  Combine `customer_id`, `feature_id`, and `custom_range` for precise queries.
+</Card>
+
+<Card title="Monitor Total Count" icon="calculator">
+  Use the `total` field to understand the full dataset size before paginating.
+</Card>

@@ -1,0 +1,458 @@
+---
+title: 'Aggregate Events'
+openapi: 'POST /v1/events.aggregate'
+---
+
+## Overview
+
+The Aggregate Events endpoint provides powerful analytics capabilities for usage events. It returns time-series data showing how usage evolves over time, with support for multiple features and custom grouping.
+
+## Use Cases
+
+- **Usage analytics**: Visualize usage trends over time
+- **Billing calculations**: Calculate usage-based charges for specific periods
+- **Capacity planning**: Identify usage patterns and predict future needs
+- **Feature adoption**: Track how different features are being used
+- **Segmentation analysis**: Break down usage by custom properties (e.g., API model, region)
+
+## Key Concepts
+
+### Time Periods (Bins)
+
+Events are aggregated into time periods called "bins". Each bin represents a specific time window:
+
+- **hour**: Hourly aggregation
+- **day**: Daily aggregation (default)
+- **month**: Monthly aggregation
+
+### Range Options
+
+Predefined time ranges make it easy to query common periods:
+
+- `24h`: Last 24 hours
+- `7d`: Last 7 days
+- `30d`: Last 30 days
+- `90d`: Last 90 days
+- `last_cycle`: Previous billing cycle
+- `1bc`: Current billing cycle (default)
+- `3bc`: Last 3 billing cycles
+
+Alternatively, use `custom_range` with `start` and `end` timestamps (epoch milliseconds).
+
+## Basic Aggregation
+
+### Single Feature, Daily Bins
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": "api_calls",
+  "range": "30d",
+  "bin_size": "day"
+}
+```
+
+**Response:**
+
+```json
+{
+  "list": [
+    {
+      "period": 1762905600000,
+      "values": {
+        "api_calls": 150
+      }
+    },
+    {
+      "period": 1762992000000,
+      "values": {
+        "api_calls": 203
+      }
+    }
+  ],
+  "total": {
+    "api_calls": {
+      "count": 2,
+      "sum": 353
+    }
+  }
+}
+```
+
+### Multiple Features
+
+Aggregate multiple features in a single request:
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": ["api_calls", "messages", "storage"],
+  "range": "7d",
+  "bin_size": "day"
+}
+```
+
+**Response:**
+
+```json
+{
+  "list": [
+    {
+      "period": 1762905600000,
+      "values": {
+        "api_calls": 150,
+        "messages": 45,
+        "storage": 1024
+      }
+    },
+    {
+      "period": 1762992000000,
+      "values": {
+        "api_calls": 203,
+        "messages": 67,
+        "storage": 2048
+      }
+    }
+  ],
+  "total": {
+    "api_calls": {
+      "count": 2,
+      "sum": 353
+    },
+    "messages": {
+      "count": 2,
+      "sum": 112
+    },
+    "storage": {
+      "count": 2,
+      "sum": 3072
+    }
+  }
+}
+```
+
+## Advanced: Grouped Aggregation
+
+Group events by custom properties to analyze usage across different dimensions.
+
+### Group by Property
+
+Use the `group_by` parameter to break down usage by event properties:
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": "api_calls",
+  "range": "7d",
+  "bin_size": "day",
+  "group_by": "properties.model"
+}
+```
+
+**Response:**
+
+```json
+{
+  "list": [
+    {
+      "period": 1762905600000,
+      "values": {
+        "api_calls": 150
+      },
+      "grouped_values": {
+        "api_calls": {
+          "gpt-4": 100,
+          "gpt-3.5-turbo": 50
+        }
+      }
+    },
+    {
+      "period": 1762992000000,
+      "values": {
+        "api_calls": 203
+      },
+      "grouped_values": {
+        "api_calls": {
+          "gpt-4": 150,
+          "gpt-3.5-turbo": 53
+        }
+      }
+    }
+  ],
+  "total": {
+    "api_calls": {
+      "count": 2,
+      "sum": 353
+    }
+  }
+}
+```
+
+### Multiple Features with Grouping
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": ["api_calls", "messages"],
+  "range": "7d",
+  "group_by": "properties.region"
+}
+```
+
+**Response:**
+
+```json
+{
+  "list": [
+    {
+      "period": 1762905600000,
+      "values": {
+        "api_calls": 150,
+        "messages": 45
+      },
+      "grouped_values": {
+        "api_calls": {
+          "us-east-1": 90,
+          "eu-west-1": 60
+        },
+        "messages": {
+          "us-east-1": 30,
+          "eu-west-1": 15
+        }
+      }
+    }
+  ],
+  "total": {
+    "api_calls": {
+      "count": 1,
+      "sum": 150
+    },
+    "messages": {
+      "count": 1,
+      "sum": 45
+    }
+  }
+}
+```
+
+## Bin Size Selection
+
+Choose the appropriate bin size based on your time range:
+
+| Range | Recommended Bin Size | Example Use Case |
+|-------|---------------------|------------------|
+| 24h | `hour` | Real-time monitoring |
+| 7d | `day` | Weekly trends |
+| 30d | `day` | Monthly analytics |
+| 90d | `day` or `month` | Quarterly reports |
+| 1bc | `day` | Current billing period |
+
+<Note>
+If not specified, `bin_size` defaults to `hour` for 24h range and `day` for all other ranges.
+</Note>
+
+## Custom Time Ranges
+
+For precise control over the aggregation period, use `custom_range`:
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": "api_calls",
+  "custom_range": {
+    "start": 1704067200000,
+    "end": 1706745600000
+  },
+  "bin_size": "day"
+}
+```
+
+<Warning>
+`custom_range` and `range` are mutually exclusive. Use one or the other, not both.
+</Warning>
+
+### JavaScript Example
+
+```javascript
+// Get usage for the first week of January 2024
+const startDate = new Date('2024-01-01T00:00:00Z');
+const endDate = new Date('2024-01-08T00:00:00Z');
+
+const request = {
+  customer_id: 'cus_123',
+  feature_id: 'api_calls',
+  custom_range: {
+    start: startDate.getTime(),
+    end: endDate.getTime()
+  },
+  bin_size: 'day'
+};
+```
+
+## Response Structure
+
+### List Items
+
+Each item in the `list` array represents one time period:
+
+- **period**: Unix timestamp (epoch milliseconds) marking the start of this time bin
+- **values**: Object with feature IDs as keys and aggregated totals as values
+- **grouped_values**: (Optional) Nested object breaking down values by group when `group_by` is used
+
+### Total Object
+
+The `total` object provides overall statistics per feature:
+
+- **count**: Number of time periods with data for this feature
+- **sum**: Total sum of all values across all periods
+
+## Example Queries
+
+### Hourly Usage for Last 24 Hours
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": "api_calls",
+  "range": "24h",
+  "bin_size": "hour"
+}
+```
+
+### Current Billing Cycle Usage
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": ["api_calls", "storage"],
+  "range": "1bc"
+}
+```
+
+### Usage by Model Type
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": "ai_requests",
+  "range": "30d",
+  "group_by": "properties.model"
+}
+```
+
+### Monthly Aggregation for Quarterly Report
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": ["api_calls", "storage", "bandwidth"],
+  "range": "90d",
+  "bin_size": "month"
+}
+```
+
+### Multi-Dimensional Analysis
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": ["api_calls", "messages"],
+  "range": "30d",
+  "bin_size": "day",
+  "group_by": "properties.environment"
+}
+```
+
+## Visualization Example
+
+```javascript
+// Fetch aggregated data
+const response = await fetch('https://api.autumn.com/v1/events.aggregate', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer YOUR_API_KEY',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    customer_id: 'cus_123',
+    feature_id: ['api_calls', 'messages'],
+    range: '30d',
+    bin_size: 'day'
+  })
+});
+
+const data = await response.json();
+
+// Transform for charting library (e.g., Chart.js)
+const chartData = {
+  labels: data.list.map(item => new Date(item.period).toLocaleDateString()),
+  datasets: [
+    {
+      label: 'API Calls',
+      data: data.list.map(item => item.values.api_calls || 0)
+    },
+    {
+      label: 'Messages',
+      data: data.list.map(item => item.values.messages || 0)
+    }
+  ]
+};
+```
+
+## Best Practices
+
+<Card title="Choose Appropriate Bin Size" icon="calendar">
+  Match bin size to your analysis needs: hourly for real-time, daily for trends, monthly for long-term patterns.
+</Card>
+
+<Card title="Use Grouping Strategically" icon="layer-group">
+  Group by meaningful properties (model, region, plan) to gain actionable insights, but avoid over-segmentation.
+</Card>
+
+<Card title="Monitor Total Metrics" icon="chart-line">
+  Use the `total` object for quick summary statistics before diving into time-series data.
+</Card>
+
+<Card title="Cache Aggregated Data" icon="database">
+  For frequently accessed reports, cache aggregation results to reduce API calls and improve performance.
+</Card>
+
+## Common Use Cases
+
+### Usage-Based Billing
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": "api_calls",
+  "range": "1bc"
+}
+```
+
+Use the `total.sum` value to calculate charges for the current billing cycle.
+
+### Feature Adoption Tracking
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": ["feature_a", "feature_b", "feature_c"],
+  "range": "90d",
+  "bin_size": "day"
+}
+```
+
+Compare values across features to identify which are growing or declining.
+
+### Cost Attribution
+
+```json
+{
+  "customer_id": "cus_123",
+  "feature_id": "compute",
+  "range": "30d",
+  "group_by": "properties.team_id"
+}
+```
+
+Break down costs by team, project, or department using grouped aggregation.

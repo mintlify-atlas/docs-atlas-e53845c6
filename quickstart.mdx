@@ -1,80 +1,259 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with Autumn in minutes
 ---
 
-## Get started in three steps
+## Choose Your Path
 
-Get your documentation site running locally and make your first customization.
-
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
+You have two options to get started with Autumn:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Cloud (Recommended)" icon="cloud">
+    The fastest way to start - no setup required
+  </Card>
+  <Card title="Self-Hosted" icon="server">
+    Run Autumn on your own infrastructure
+  </Card>
 </CardGroup>
 
+## Cloud Setup
+
+The quickest way to start using Autumn is through our cloud service.
+
+<Steps>
+  <Step title="Sign up for Autumn Cloud">
+    Visit [app.useautumn.com](https://app.useautumn.com) and create your account.
+  </Step>
+
+  <Step title="Get your API keys">
+    Navigate to Settings → API Keys in your dashboard and copy your secret key.
+  </Step>
+
+  <Step title="Install the SDK">
+    Install the Autumn SDK in your project:
+
+    <CodeGroup>
+    ```bash npm
+    npm install @useautumn/sdk
+    ```
+
+    ```bash pnpm
+    pnpm add @useautumn/sdk
+    ```
+
+    ```bash bun
+    bun add @useautumn/sdk
+    ```
+
+    ```bash yarn
+    yarn add @useautumn/sdk
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Initialize the client">
+    Create an Autumn client instance with your API key:
+
+    ```typescript
+    import { Autumn } from "@useautumn/sdk";
+
+    const autumn = new Autumn({
+      xApiVersion: "2.1",
+      secretKey: process.env.AUTUMN_SECRET_KEY,
+    });
+    ```
+
+    <Warning>
+      Never expose your secret key in client-side code. Always use environment variables and server-side API routes.
+    </Warning>
+  </Step>
+</Steps>
+
+## Local Development Setup
+
+To run Autumn locally on your machine:
+
+<Steps>
+  <Step title="Install Bun">
+    Autumn requires [Bun](https://bun.sh) as its runtime. Install it if you haven't already:
+
+    ```bash
+    curl -fsSL https://bun.sh/install | bash
+    ```
+  </Step>
+
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/useautumn/autumn.git
+    cd autumn
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    ```bash
+    bun install
+    ```
+  </Step>
+
+  <Step title="Run the setup script">
+    The setup script will initialize environment variables and optionally create a Supabase instance:
+
+    ```bash
+    bun setup
+    ```
+
+    <Note>
+      The setup script initializes required env vars and (optionally) a Supabase instance. If you'd like to use your own Postgres instance, paste the connection string in the `DATABASE_URL` env variable at `server/.env`.
+    </Note>
+  </Step>
+
+  <Step title="Generate database tables">
+    ```bash
+    bun db:generate && bun db:migrate
+    ```
+  </Step>
+
+  <Step title="Start Autumn with Docker">
+    <CodeGroup>
+    ```bash Windows
+    docker compose -f docker-compose.dev.yml up
+    ```
+
+    ```bash macOS/Linux
+    docker compose -f docker-compose.unix.yml up
+    ```
+    </CodeGroup>
+
+    The Autumn dashboard will be available at `http://localhost:3000`.
+  </Step>
+
+  <Step title="Sign in to the dashboard">
+    Enter your email at the sign-in page. An OTP will appear in your console/terminal.
+
+    <Note>
+      In production, Autumn uses Resend to email OTPs or Google OAuth. Configure these by providing your credentials in `server/.env`.
+    </Note>
+  </Step>
+</Steps>
+
+## Create Your First Product
+
+Once you're logged in to the dashboard:
+
+<Steps>
+  <Step title="Create a product">
+    Navigate to Products → Create Product and define your first product (e.g., "Pro Plan").
+  </Step>
+
+  <Step title="Add features">
+    Define the features included in your product:
+    - **Metered features**: API calls, tokens, messages (consumed over time)
+    - **Boolean features**: Access flags for premium features
+    - **Entity features**: Seats, workspaces, projects (allocated resources)
+  </Step>
+
+  <Step title="Set pricing">
+    Configure your pricing model:
+    - Recurring subscription (monthly/yearly)
+    - Usage-based with overages
+    - One-time purchase
+    - Credits and top-ups
+  </Step>
+</Steps>
+
+## Integrate with Your App
+
+Now that you have a product set up, integrate Autumn into your application:
+
+### Create or Get a Customer
+
+```typescript
+const customer = await autumn.customers.getOrCreate({
+  id: "user_123",
+  name: "John Doe",
+  email: "john@example.com"
+});
+```
+
+### Attach a Plan to a Customer
+
+```typescript
+const result = await autumn.billing.attach({
+  customerId: "user_123",
+  planId: "pro_plan"
+});
+
+// If payment is required, redirect to checkout
+if (result.paymentUrl) {
+  window.location.href = result.paymentUrl;
+}
+```
+
+### Check Access to a Feature
+
+```typescript
+const { data } = await autumn.check({
+  customerId: "user_123",
+  featureId: "ai_tokens"
+});
+
+if (!data.allowed) {
+  console.log("Feature access denied");
+  console.log("Current balance:", data.balance);
+}
+```
+
+### Track Usage
+
+```typescript
+await autumn.track({
+  customerId: "user_123",
+  featureId: "ai_tokens",
+  value: 100 // Track 100 tokens used
+});
+```
+
+### Check and Track Atomically
+
+You can check access and record usage in a single request:
+
+```typescript
+const { data } = await autumn.check({
+  customerId: "user_123",
+  featureId: "messages",
+  requiredBalance: 3,
+  sendEvent: true // Atomically consume 3 units if allowed
+});
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Self-Hosting Guide" icon="server" href="/self-hosting">
+    Learn how to deploy Autumn on your own infrastructure
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/overview">
+    Explore all available endpoints and operations
+  </Card>
+  <Card title="React Integration" icon="react" href="/sdks/javascript/react-hooks">
+    Use Autumn with React hooks and components
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/integration/webhooks">
+    Set up webhooks to react to billing events
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<Warning>
+  If you encounter a `SyntaxError: Unexpected end of JSON input` error when running `bun setup` again after previously running it, you may need to clear your database tables first. This is a [known issue](https://github.com/drizzle-team/drizzle-orm/issues/4529) that can occur when running database migrations multiple times.
+
+  To resolve:
+  1. Connect to your database
+  2. Drop all existing tables
+  3. Run `bun setup` again
+</Warning>
+
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Need help? Join our [Discord community](https://discord.gg/53emPtY9tA) or reach out at hey@useautumn.com
 </Note>

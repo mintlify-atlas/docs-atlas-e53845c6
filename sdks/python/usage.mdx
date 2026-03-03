@@ -1,0 +1,640 @@
+---
+title: "Usage Guide"
+description: "Learn how to use the Autumn Python SDK for billing and usage tracking"
+---
+
+## Overview
+
+The Autumn Python SDK provides a type-safe interface for managing customers, subscriptions, usage tracking, and billing. This guide covers common use cases and patterns.
+
+## Quick Start
+
+```python
+from autumn_sdk import Autumn
+import os
+
+# Initialize the client
+client = Autumn(secret_key=os.getenv("AUTUMN_SECRET_KEY"))
+
+# Get or create a customer
+customer = client.customers.get_or_create(
+    customer_id="user_123",
+    name="John Doe",
+    email="john@example.com"
+)
+
+# Check if customer has access to a feature
+result = client.check(
+    customer_id="user_123",
+    feature_id="messages"
+)
+
+if result.allowed:
+    print("Access granted!")
+else:
+    print("Access denied - upgrade required")
+```
+
+## Customer Management
+
+### Get or Create a Customer
+
+The `get_or_create` method is idempotent and updates customer data if they already exist:
+
+```python
+customer = client.customers.get_or_create(
+    customer_id="user_123",  # Your internal user ID
+    name="John Doe",
+    email="john@example.com",
+    metadata={"source": "web", "plan": "trial"},
+    fingerprint="device_abc123",  # For fraud prevention
+    create_in_stripe=True,  # Create Stripe customer
+    auto_enable_plan_id="plan_free",  # Auto-activate free plan
+    send_email_receipts=True
+)
+
+print(f"Customer ID: {customer.id}")
+print(f"Stripe ID: {customer.stripe_id}")
+```
+
+### List Customers
+
+```python
+from autumn_sdk.models import CustomerExpand
+
+# List all customers with pagination
+response = client.customers.list(
+    limit=50,
+    starting_after="cus_xyz",  # For pagination
+    expand=[CustomerExpand.BALANCES, CustomerExpand.SUBSCRIPTIONS]
+)
+
+for customer in response.data:
+    print(f"{customer.name} - {customer.email}")
+```
+
+### Update a Customer
+
+```python
+updated = client.customers.update(
+    id="cus_123",
+    name="John Smith",
+    email="john.smith@example.com",
+    metadata={"vip": True}
+)
+```
+
+### Delete a Customer
+
+```python
+client.customers.delete(id="cus_123")
+```
+
+## Usage Tracking
+
+### Check Feature Access
+
+Check if a customer can access a feature before allowing the action:
+
+```python
+# Simple check
+result = client.check(
+    customer_id="user_123",
+    feature_id="api_calls"
+)
+
+if result.allowed:
+    # Perform the action
+    print(f"Remaining balance: {result.balance}")
+else:
+    print("Upgrade required")
+    if result.preview:
+        print(f"Suggested plan: {result.preview.recommended_plan}")
+```
+
+### Check and Track Atomically
+
+Combine checking and tracking in a single request for atomic operations:
+
+```python
+# Check access and consume balance in one call
+result = client.check(
+    customer_id="user_123",
+    feature_id="api_calls",
+    required_balance=5,  # Require at least 5 credits
+    send_event=True,  # Also track the usage
+    properties={"endpoint": "/api/generate", "tokens": 150}
+)
+
+if result.allowed:
+    print(f"Success! New balance: {result.balance}")
+else:
+    print(f"Insufficient balance. Current: {result.balance}")
+```
+
+### Track Usage
+
+Record usage after an action occurs:
+
+```python
+# Track by feature ID
+result = client.track(
+    customer_id="user_123",
+    feature_id="api_calls",
+    value=1,  # Amount to consume (defaults to 1)
+    properties={
+        "endpoint": "/api/generate",
+        "tokens": 150,
+        "model": "gpt-4"
+    }
+)
+
+print(f"Updated balance: {result.balance}")
+
+# Track by event name (for multi-feature tracking)
+result = client.track(
+    customer_id="user_123",
+    event_name="message_sent",  # Will update all features linked to this event
+    value=1,
+    properties={"message_type": "email"}
+)
+
+# Credit balance (negative value)
+result = client.track(
+    customer_id="user_123",
+    feature_id="seats",
+    value=-1,  # Remove a seat
+    properties={"reason": "user_removed"}
+)
+```
+
+### Entity-Scoped Usage
+
+Track usage scoped to specific entities (seats, projects, workspaces):
+
+```python
+# Create an entity
+entity = client.entities.create(
+    customer_id="user_123",
+    feature_id="seats",
+    entity_id="workspace_abc",  # Your entity identifier
+    name="Engineering Team"
+)
+
+# Track usage for the entity
+result = client.check(
+    customer_id="user_123",
+    feature_id="seats",
+    entity_id="workspace_abc"
+)
+
+# Delete entity when done
+client.entities.delete(
+    entity_id="workspace_abc",
+    customer_id="user_123"  # Optional: scope to customer
+)
+```
+
+## Subscription Management
+
+### Attach a Plan
+
+Subscribe a customer to a plan:
+
+```python
+from autumn_sdk.models import AttachProrationBehavior
+
+result = client.billing.attach(
+    customer_id="user_123",
+    plan_id="plan_pro_monthly",
+    
+    # For prepaid features (e.g., seats)
+    feature_quantities=[
+        {"feature_id": "seats", "quantity": 5}
+    ],
+    
+    # Proration behavior
+    proration_behavior=AttachProrationBehavior.PRORATE_IMMEDIATELY,
+    
+    # Apply discounts
+    discounts=[
+        {"type": "coupon", "id": "SUMMER20"}  # 20% off coupon
+    ],
+    
+    # For payment method collection
+    success_url="https://app.example.com/billing/success"
+)
+
+if result.checkout_url:
+    print(f"Redirect user to: {result.checkout_url}")
+else:
+    print(f"Subscription activated: {result.subscription.id}")
+```
+
+### Attach Multiple Plans
+
+Subscribe to multiple plans in a single subscription:
+
+```python
+result = client.billing.multi_attach(
+    customer_id="user_123",
+    plans=[
+        {
+            "plan_id": "plan_base",
+            "feature_quantities": [{"feature_id": "users", "quantity": 10}]
+        },
+        {
+            "plan_id": "addon_analytics"
+        },
+        {
+            "plan_id": "addon_api",
+            "feature_quantities": [{"feature_id": "api_calls", "quantity": 100000}]
+        }
+    ],
+    success_url="https://app.example.com/billing/success"
+)
+```
+
+### Preview Plan Changes
+
+Show customers the cost before making changes:
+
+```python
+# Preview attaching a plan
+preview = client.billing.preview_attach(
+    customer_id="user_123",
+    plan_id="plan_enterprise",
+    feature_quantities=[{"feature_id": "seats", "quantity": 20}]
+)
+
+print(f"Immediate charge: ${preview.immediate_total / 100}")
+print(f"Next invoice total: ${preview.next_total / 100}")
+
+for item in preview.invoice_items:
+    print(f"  {item.description}: ${item.amount / 100}")
+```
+
+### Update a Subscription
+
+```python
+from autumn_sdk.models import BillingUpdateAction
+
+result = client.billing.update(
+    customer_id="user_123",
+    
+    # Update prepaid quantities
+    feature_quantities=[
+        {"feature_id": "seats", "quantity": 10}  # Increase to 10 seats
+    ],
+    
+    # Or cancel the subscription
+    action=BillingUpdateAction.CANCEL,
+    cancel_at_period_end=True  # Cancel at end of billing period
+)
+```
+
+### Customer Portal
+
+Create a session for customers to manage their billing:
+
+```python
+portal = client.billing.open_customer_portal(
+    customer_id="user_123",
+    return_url="https://app.example.com/settings/billing"
+)
+
+print(f"Redirect to: {portal.url}")
+```
+
+### Setup Payment Method
+
+```python
+session = client.billing.setup_payment(
+    customer_id="user_123",
+    success_url="https://app.example.com/billing/success",
+    cancel_url="https://app.example.com/billing/cancel"
+)
+
+print(f"Redirect to: {session.url}")
+```
+
+## Balance Management
+
+### Create a Balance
+
+Manually create or grant balances:
+
+```python
+balance = client.balances.create(
+    customer_id="user_123",
+    feature_id="api_calls",
+    initial_balance=1000,  # Grant 1000 API calls
+    reset_frequency="monthly",  # Reset every month
+    expires_at="2025-12-31T23:59:59Z"  # Optional expiration
+)
+```
+
+### Update a Balance
+
+```python
+balance = client.balances.update(
+    balance_id="bal_xyz",
+    balance=5000,  # Set new balance
+    increment_by=1000  # Or increment by amount
+)
+```
+
+## Plans and Features
+
+### Create a Plan
+
+```python
+from autumn_sdk.models import PlanInterval
+
+plan = client.plans.create(
+    id="plan_startup",
+    name="Startup Plan",
+    description="Perfect for growing teams",
+    price=4900,  # $49.00 in cents
+    interval=PlanInterval.MONTH,
+    currency="usd",
+    features=[
+        {"feature_id": "seats", "included": 5, "unit_price": 900},  # $9 per extra seat
+        {"feature_id": "api_calls", "included": 10000}
+    ]
+)
+```
+
+### List Plans
+
+```python
+plans = client.plans.list(limit=50)
+for plan in plans.data:
+    print(f"{plan.name}: ${plan.price / 100}/{plan.interval}")
+```
+
+### Create a Feature
+
+```python
+from autumn_sdk.models import FeatureType
+
+feature = client.features.create(
+    id="api_calls",
+    name="API Calls",
+    type=FeatureType.METERED,  # Or FEATURE_FLAG, SEAT, etc.
+    unit_label="calls",
+    description="Number of API calls per month"
+)
+```
+
+### List Features
+
+```python
+features = client.features.list()
+for feature in features.data:
+    print(f"{feature.name} ({feature.type})")
+```
+
+## Events and Analytics
+
+### List Usage Events
+
+```python
+events = client.events.list(
+    customer_id="user_123",  # Optional: filter by customer
+    feature_id="api_calls",  # Optional: filter by feature
+    limit=100,
+    starting_after="evt_xyz"  # For pagination
+)
+
+for event in events.data:
+    print(f"{event.created_at}: {event.feature_id} - {event.value}")
+```
+
+### Aggregate Events
+
+```python
+from autumn_sdk.models import AggregateBy, AggregateGroupBy
+
+aggregates = client.events.aggregate(
+    aggregate_by=AggregateBy.DAY,  # Group by day
+    feature_id="api_calls",
+    start_date="2024-01-01",
+    end_date="2024-01-31",
+    group_by=AggregateGroupBy.CUSTOMER  # Group by customer
+)
+
+for agg in aggregates.data:
+    print(f"{agg.date}: {agg.total_usage} calls")
+```
+
+## Referral Programs
+
+### Create a Referral Code
+
+```python
+referral = client.referrals.create_code(
+    customer_id="user_123",
+    program_id="refer_friend"  # Your referral program ID
+)
+
+print(f"Referral code: {referral.code}")
+print(f"Share link: {referral.share_url}")
+```
+
+### Redeem a Referral Code
+
+```python
+result = client.referrals.redeem_code(
+    customer_id="user_456",  # New customer
+    code="FRIEND20"  # Code from existing customer
+)
+
+print(f"Reward applied: {result.reward.description}")
+```
+
+## Async/Await Support
+
+All methods have async equivalents with `_async` suffix:
+
+```python
+import asyncio
+from autumn_sdk import Autumn
+
+async def main():
+    async with Autumn(secret_key="sk_live_...") as client:
+        # All operations use async methods
+        customer = await client.customers.get_or_create_async(
+            customer_id="user_123",
+            name="John Doe"
+        )
+        
+        result = await client.check_async(
+            customer_id="user_123",
+            feature_id="messages"
+        )
+        
+        if result.allowed:
+            await client.track_async(
+                customer_id="user_123",
+                feature_id="messages",
+                value=1
+            )
+
+asyncio.run(main())
+```
+
+## Error Handling
+
+The SDK raises specific exceptions for different error cases:
+
+```python
+from autumn_sdk import Autumn, errors
+import httpx
+
+try:
+    result = client.check(
+        customer_id="user_123",
+        feature_id="invalid_feature"
+    )
+except errors.AutumnError as e:
+    # Base class for all Autumn API errors
+    print(f"API Error: {e.message}")
+    print(f"Status Code: {e.status_code}")
+    print(f"Response Body: {e.body}")
+    print(f"Headers: {e.headers}")
+except httpx.TimeoutException:
+    print("Request timed out")
+except httpx.ConnectError:
+    print("Failed to connect to API")
+except errors.ResponseValidationError as e:
+    # Response doesn't match expected schema
+    print(f"Validation Error: {e.message}")
+    print(f"Pydantic Error: {e.cause}")
+```
+
+### Common Error Patterns
+
+```python
+def safe_check_access(customer_id: str, feature_id: str) -> bool:
+    """Safely check feature access with error handling."""
+    try:
+        result = client.check(
+            customer_id=customer_id,
+            feature_id=feature_id
+        )
+        return result.allowed
+    except errors.AutumnError as e:
+        if e.status_code == 404:
+            # Customer or feature not found
+            print(f"Not found: {e.message}")
+            return False
+        elif e.status_code == 429:
+            # Rate limited
+            print("Rate limited, try again later")
+            return False
+        else:
+            # Other API error
+            print(f"API error: {e.message}")
+            raise
+    except httpx.RequestError as e:
+        # Network error
+        print(f"Network error: {e}")
+        return False
+```
+
+## Best Practices
+
+### 1. Use Context Managers
+
+Always use `with` statements to ensure proper resource cleanup:
+
+```python
+with Autumn(secret_key=os.getenv("AUTUMN_SECRET_KEY")) as client:
+    # Your code here
+    pass
+# Connections automatically closed
+```
+
+### 2. Reuse Client Instances
+
+Create one client instance and reuse it:
+
+```python
+# ❌ Bad: Creating new clients
+def check_access(user_id: str):
+    client = Autumn(secret_key=os.getenv("AUTUMN_SECRET_KEY"))
+    return client.check(customer_id=user_id, feature_id="messages")
+
+# ✅ Good: Reuse client
+client = Autumn(secret_key=os.getenv("AUTUMN_SECRET_KEY"))
+
+def check_access(user_id: str):
+    return client.check(customer_id=user_id, feature_id="messages")
+```
+
+### 3. Use Type Hints
+
+The SDK includes full type hints for better IDE support:
+
+```python
+from autumn_sdk.models import Customer, CheckResponse
+
+def get_customer(customer_id: str) -> Customer:
+    return client.customers.get_or_create(customer_id=customer_id)
+
+def check_feature(customer_id: str, feature_id: str) -> CheckResponse:
+    return client.check(customer_id=customer_id, feature_id=feature_id)
+```
+
+### 4. Handle Errors Gracefully
+
+Always implement error handling for production code:
+
+```python
+try:
+    customer = client.customers.get_or_create(
+        customer_id="user_123",
+        email="user@example.com"
+    )
+except errors.AutumnError as e:
+    logger.error(f"Failed to create customer: {e.message}")
+    # Handle error appropriately
+    raise
+```
+
+### 5. Use Environment-Specific Configuration
+
+```python
+import os
+
+# Different configs for different environments
+if os.getenv("ENV") == "production":
+    client = Autumn(
+        secret_key=os.getenv("AUTUMN_SECRET_KEY_PROD"),
+        timeout_ms=10000
+    )
+else:
+    client = Autumn(
+        secret_key=os.getenv("AUTUMN_SECRET_KEY_DEV"),
+        timeout_ms=30000,
+        debug_logger=logging.getLogger("autumn_sdk")
+    )
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/api/overview">
+    Explore the complete API documentation
+  </Card>
+  <Card title="Webhook Events" icon="webhook" href="/integration/webhooks">
+    Learn how to handle webhook events
+  </Card>
+  <Card title="TypeScript SDK" icon="code" href="/sdks/javascript/installation">
+    Check out the TypeScript SDK
+  </Card>
+  <Card title="Examples" icon="code-branch" href="/quickstart">
+    View example implementations
+  </Card>
+</CardGroup>

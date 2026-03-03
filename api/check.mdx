@@ -1,0 +1,263 @@
+---
+title: "Check Balance"
+api: "POST /v1/balances.check"
+---
+
+Checks whether a customer currently has enough balance to use a feature. Optionally combines checking and consuming balance in a single atomic operation.
+
+## Authentication
+
+Requires a valid API secret key in the `Authorization` header:
+
+```
+Authorization: Bearer YOUR_SECRET_KEY
+```
+
+## Request Body
+
+<ParamField body="customer_id" type="string" required>
+  The ID of the customer.
+</ParamField>
+
+<ParamField body="feature_id" type="string" required>
+  The ID of the feature to check access for.
+</ParamField>
+
+<ParamField body="entity_id" type="string">
+  The ID of the entity for entity-scoped balances (e.g., per-seat limits).
+</ParamField>
+
+<ParamField body="required_balance" type="number" default={1}>
+  Minimum balance required for access. Returns `allowed: false` if the customer's balance is below this value.
+</ParamField>
+
+<ParamField body="send_event" type="boolean">
+  If true, atomically records a usage event while checking access. The `required_balance` value is used as the usage amount. This combines check + track in one call.
+</ParamField>
+
+<ParamField body="properties" type="object">
+  Additional properties to attach to the usage event if `send_event` is true. Accepts any key-value pairs.
+</ParamField>
+
+<ParamField body="with_preview" type="boolean">
+  If true, includes upgrade/upsell information in the response when access is denied. Useful for displaying paywalls.
+</ParamField>
+
+## Query Parameters
+
+<ParamField query="skip_cache" type="boolean">
+  If true, bypasses the cache and fetches fresh data.
+</ParamField>
+
+<ParamField query="expand" type="string">
+  Comma-separated list of fields to expand. Available options:
+  - `balance.feature`: Include full feature object in the balance response
+</ParamField>
+
+## Response
+
+<ResponseField name="allowed" type="boolean">
+  Whether the customer is allowed to use the feature. True if they have sufficient balance or the feature is unlimited/boolean.
+</ResponseField>
+
+<ResponseField name="customer_id" type="string">
+  The ID of the customer that was checked.
+</ResponseField>
+
+<ResponseField name="entity_id" type="string">
+  The ID of the entity, if an entity-scoped check was performed.
+</ResponseField>
+
+<ResponseField name="required_balance" type="number">
+  The required balance that was checked against.
+</ResponseField>
+
+<ResponseField name="balance" type="object">
+  The customer's balance for this feature. Null if the customer has no balance for this feature.
+  
+  <ResponseField name="feature_id" type="string">
+    The feature ID this balance is for.
+  </ResponseField>
+  
+  <ResponseField name="granted" type="number">
+    Total balance granted (included + prepaid).
+  </ResponseField>
+  
+  <ResponseField name="remaining" type="number">
+    Remaining balance available for use.
+  </ResponseField>
+  
+  <ResponseField name="usage" type="number">
+    Total usage consumed in the current period.
+  </ResponseField>
+  
+  <ResponseField name="unlimited" type="boolean">
+    Whether this feature has unlimited usage.
+  </ResponseField>
+  
+  <ResponseField name="overage_allowed" type="boolean">
+    Whether usage beyond the granted balance is allowed (with overage charges).
+  </ResponseField>
+  
+  <ResponseField name="max_purchase" type="number">
+    Maximum quantity that can be purchased as a top-up, or null for unlimited.
+  </ResponseField>
+  
+  <ResponseField name="next_reset_at" type="number">
+    Timestamp when the balance will reset, or null for no reset.
+  </ResponseField>
+  
+  <ResponseField name="breakdown" type="array">
+    Detailed breakdown of balance sources when stacking multiple plans or grants.
+    
+    <ResponseField name="id" type="string">
+      The unique identifier for this balance breakdown.
+    </ResponseField>
+    
+    <ResponseField name="plan_id" type="string">
+      The plan ID this balance originates from, or null for standalone balances.
+    </ResponseField>
+    
+    <ResponseField name="included_grant" type="number">
+      Amount granted from the plan's included usage.
+    </ResponseField>
+    
+    <ResponseField name="prepaid_grant" type="number">
+      Amount granted from prepaid purchases or top-ups.
+    </ResponseField>
+    
+    <ResponseField name="remaining" type="number">
+      Remaining balance available for use.
+    </ResponseField>
+    
+    <ResponseField name="usage" type="number">
+      Amount consumed in the current period.
+    </ResponseField>
+    
+    <ResponseField name="unlimited" type="boolean">
+      Whether this balance has unlimited usage.
+    </ResponseField>
+    
+    <ResponseField name="reset" type="object">
+      Reset configuration for this balance, or null if no reset.
+      
+      <ResponseField name="interval" type="string">
+        Reset interval: `day`, `week`, `month`, or `year`.
+      </ResponseField>
+      
+      <ResponseField name="resets_at" type="number">
+        Timestamp when the next reset occurs.
+      </ResponseField>
+    </ResponseField>
+    
+    <ResponseField name="price" type="object">
+      Pricing configuration if this balance has usage-based pricing.
+    </ResponseField>
+    
+    <ResponseField name="expires_at" type="number">
+      Timestamp when this balance expires, or null for no expiration.
+    </ResponseField>
+  </ResponseField>
+  
+  <ResponseField name="feature" type="object">
+    The full feature object if `expand=balance.feature` was used.
+  </ResponseField>
+</ResponseField>
+
+<ResponseField name="preview" type="object">
+  Upgrade/upsell information when access is denied. Only present if `with_preview` was true and `allowed` is false.
+</ResponseField>
+
+## Example Request
+
+### Simple Check
+
+```bash
+curl -X POST https://api.autumnai.com/v1/balances.check \
+  -H "Authorization: Bearer YOUR_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "cus_123",
+    "feature_id": "messages"
+  }'
+```
+
+### Check and Consume (Atomic)
+
+```bash
+curl -X POST https://api.autumnai.com/v1/balances.check \
+  -H "Authorization: Bearer YOUR_SECRET_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "cus_123",
+    "feature_id": "messages",
+    "required_balance": 3,
+    "send_event": true
+  }'
+```
+
+## Example Response
+
+```json
+{
+  "allowed": true,
+  "customer_id": "cus_123",
+  "entity_id": null,
+  "required_balance": 1,
+  "balance": {
+    "feature_id": "messages",
+    "granted": 100,
+    "remaining": 72,
+    "usage": 28,
+    "unlimited": false,
+    "overage_allowed": false,
+    "max_purchase": null,
+    "next_reset_at": 1773851121437,
+    "breakdown": [
+      {
+        "id": "cus_ent_39qmLooixXLAqMywgXywjAz96rV",
+        "plan_id": "pro_plan",
+        "included_grant": 100,
+        "prepaid_grant": 0,
+        "remaining": 72,
+        "usage": 28,
+        "unlimited": false,
+        "reset": {
+          "interval": "month",
+          "resets_at": 1773851121437
+        },
+        "price": null,
+        "expires_at": null
+      }
+    ]
+  }
+}
+```
+
+## Error Responses
+
+<ResponseField name="error" type="object">
+  <ResponseField name="message" type="string">
+    Human-readable error message.
+  </ResponseField>
+  
+  <ResponseField name="code" type="string">
+    Machine-readable error code. Common codes:
+    - `customer_not_found`: The specified customer doesn't exist
+    - `feature_not_found`: The specified feature doesn't exist
+    - `invalid_inputs`: Request validation failed
+    - `entity_not_found`: The specified entity doesn't exist
+    - `insufficient_balance`: Customer doesn't have enough balance (when `send_event` is true)
+  </ResponseField>
+</ResponseField>
+
+### Example Error Response
+
+```json
+{
+  "error": {
+    "message": "Customer has insufficient balance",
+    "code": "insufficient_balance"
+  }
+}
+```

@@ -1,0 +1,557 @@
+---
+title: React Hooks
+description: Complete reference for Autumn React hooks
+---
+
+## Overview
+
+Autumn provides React hooks for managing customer data, subscriptions, plans, events, and referrals. All hooks are built on [TanStack Query](https://tanstack.com/query) and return standard query results with additional methods.
+
+## useCustomer
+
+Fetches or creates an Autumn customer and provides billing actions.
+
+```tsx
+import { useCustomer } from 'autumn-js/react';
+
+function BillingComponent() {
+  const { data: customer, attach, check, isLoading } = useCustomer();
+  
+  if (isLoading) return <div>Loading...</div>;
+  
+  return (
+    <div>
+      <h1>Welcome, {customer?.email}</h1>
+      <button onClick={() => attach({ planId: 'plan_pro' })}>
+        Subscribe to Pro
+      </button>
+    </div>
+  );
+}
+```
+
+### Parameters
+
+<ParamField path="errorOnNotFound" type="boolean" optional>
+  If `true`, throws an error when customer is not found instead of returning `null`.
+</ParamField>
+
+<ParamField path="expand" type="CustomerExpand[]" optional>
+  Array of fields to expand in the response (e.g., `['subscriptions']`).
+</ParamField>
+
+<ParamField path="queryOptions" type="UseQueryOptions" optional>
+  TanStack Query options for customizing the query behavior.
+</ParamField>
+
+### Return Value
+
+Returns a query result with customer data and billing methods:
+
+<ResponseField name="data" type="Customer | null | undefined">
+  The customer object. `undefined` while loading, `null` if not found.
+</ResponseField>
+
+<ResponseField name="isLoading" type="boolean">
+  `true` while the initial query is loading.
+</ResponseField>
+
+<ResponseField name="isError" type="boolean">
+  `true` if the query encountered an error.
+</ResponseField>
+
+<ResponseField name="error" type="AutumnClientError | null">
+  The error object if the query failed.
+</ResponseField>
+
+<ResponseField name="refetch" type="() => Promise<...>">
+  Refetch the customer data.
+</ResponseField>
+
+### Billing Methods
+
+#### attach
+
+Attaches a plan to the customer. Handles new subscriptions, upgrades, and downgrades.
+
+```tsx
+const { attach } = useCustomer();
+
+const handleSubscribe = async () => {
+  const result = await attach({
+    planId: 'plan_pro',
+    freeTrial: { days: 14 },
+    quantities: { seats: 5 },
+  });
+  
+  // Automatically redirects to checkout if payment required
+  if (result.nextAction?.url) {
+    window.location.href = result.nextAction.url;
+  }
+};
+```
+
+<ParamField path="planId" type="string" required>
+  ID of the plan to attach.
+</ParamField>
+
+<ParamField path="quantities" type="Record<string, number>" optional>
+  Feature quantities to set (e.g., `{ seats: 5 }`).
+</ParamField>
+
+<ParamField path="freeTrial" type="{ days: number }" optional>
+  Free trial configuration.
+</ParamField>
+
+<ParamField path="discounts" type="string[]" optional>
+  Discount codes to apply.
+</ParamField>
+
+<ParamField path="returnUrl" type="string" optional>
+  URL to redirect to after checkout.
+</ParamField>
+
+<ParamField path="openInNewTab" type="boolean" optional>
+  Open checkout in a new tab instead of redirecting.
+</ParamField>
+
+#### previewAttach
+
+Previews billing changes without making any changes. Use this to show customers what they'll be charged.
+
+```tsx
+const { previewAttach } = useCustomer();
+
+const preview = await previewAttach({
+  planId: 'plan_pro',
+  quantities: { seats: 5 },
+});
+
+console.log('Total:', preview.total);
+console.log('Line items:', preview.lineItems);
+```
+
+#### updateSubscription
+
+Updates an existing subscription. Use to modify feature quantities, cancel, or change plan configuration.
+
+```tsx
+const { updateSubscription } = useCustomer();
+
+// Update quantities
+await updateSubscription({
+  planId: 'plan_pro',
+  quantities: { seats: 10 },
+});
+
+// Cancel subscription
+await updateSubscription({
+  planId: 'plan_pro',
+  action: 'cancel',
+});
+```
+
+<ParamField path="planId" type="string" required>
+  ID of the plan to update.
+</ParamField>
+
+<ParamField path="quantities" type="Record<string, number>" optional>
+  New feature quantities.
+</ParamField>
+
+<ParamField path="action" type="'cancel'" optional>
+  Action to perform (currently only `'cancel'` is supported).
+</ParamField>
+
+#### previewUpdateSubscription
+
+Previews subscription update changes without applying them.
+
+```tsx
+const { previewUpdateSubscription } = useCustomer();
+
+const preview = await previewUpdateSubscription({
+  planId: 'plan_pro',
+  quantities: { seats: 10 },
+});
+
+console.log('Prorated charge:', preview.proratedAmount);
+```
+
+#### check
+
+Checks feature access and balance locally (no API call). This is computed from the customer data.
+
+```tsx
+const { check, data: customer } = useCustomer();
+
+if (!customer) return null;
+
+const result = check({ featureId: 'api_calls' });
+
+if (!result.allowed) {
+  return <div>You've reached your API call limit</div>;
+}
+
+return <div>Remaining: {result.balance}</div>;
+```
+
+<ParamField path="featureId" type="string" required>
+  ID of the feature to check.
+</ParamField>
+
+Returns:
+
+<ResponseField name="allowed" type="boolean">
+  Whether the customer has access to this feature.
+</ResponseField>
+
+<ResponseField name="balance" type="number">
+  Remaining balance for the feature (for usage-based features).
+</ResponseField>
+
+#### multiAttach
+
+Attaches multiple plans in a single operation.
+
+```tsx
+const { multiAttach } = useCustomer();
+
+await multiAttach({
+  plans: [
+    { planId: 'plan_pro', quantities: { seats: 5 } },
+    { planId: 'plan_addon', freeTrial: { days: 7 } },
+  ],
+});
+```
+
+#### setupPayment
+
+Creates a payment setup session to add or update payment methods.
+
+```tsx
+const { setupPayment } = useCustomer();
+
+const result = await setupPayment({
+  returnUrl: 'https://example.com/billing',
+});
+
+// Redirect to Stripe setup page
+window.location.href = result.url;
+```
+
+#### openCustomerPortal
+
+Opens the Stripe customer billing portal.
+
+```tsx
+const { openCustomerPortal } = useCustomer();
+
+const handleManageBilling = async () => {
+  const result = await openCustomerPortal({
+    returnUrl: 'https://example.com/settings',
+  });
+  
+  window.location.href = result.url;
+};
+```
+
+## useListPlans
+
+Fetches all available plans.
+
+```tsx
+import { useListPlans } from 'autumn-js/react';
+
+function PricingPage() {
+  const { data: plans, isLoading } = useListPlans();
+  
+  if (isLoading) return <div>Loading plans...</div>;
+  
+  return (
+    <div>
+      {plans?.map(plan => (
+        <div key={plan.id}>
+          <h3>{plan.name}</h3>
+          <p>{plan.price} / {plan.interval}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Parameters
+
+<ParamField path="queryOptions" type="UseQueryOptions" optional>
+  TanStack Query options.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="data" type="Plan[]">
+  Array of plan objects.
+</ResponseField>
+
+Plus standard TanStack Query properties (`isLoading`, `isError`, `error`, `refetch`, etc.).
+
+## useListEvents
+
+Fetches events for the current customer with pagination.
+
+```tsx
+import { useListEvents } from 'autumn-js/react';
+
+function EventsLog() {
+  const {
+    list: events,
+    page,
+    hasMore,
+    nextPage,
+    prevPage,
+    isLoading,
+  } = useListEvents({
+    featureId: 'api_calls',
+    limit: 50,
+  });
+  
+  if (isLoading) return <div>Loading...</div>;
+  
+  return (
+    <div>
+      <table>
+        {events?.map(event => (
+          <tr key={event.id}>
+            <td>{event.timestamp}</td>
+            <td>{event.value}</td>
+          </tr>
+        ))}
+      </table>
+      
+      <div>
+        <button onClick={prevPage} disabled={page === 0}>
+          Previous
+        </button>
+        <span>Page {page + 1}</span>
+        <button onClick={nextPage} disabled={!hasMore}>
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
+```
+
+### Parameters
+
+<ParamField path="featureId" type="string" optional>
+  Filter events by feature ID.
+</ParamField>
+
+<ParamField path="limit" type="number" optional default="100">
+  Number of events per page.
+</ParamField>
+
+<ParamField path="customRange" type="{ start: Date, end: Date }" optional>
+  Custom date range for filtering events.
+</ParamField>
+
+<ParamField path="queryOptions" type="UseQueryOptions" optional>
+  TanStack Query options.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="list" type="Event[]">
+  Array of event objects for the current page.
+</ResponseField>
+
+<ResponseField name="page" type="number">
+  Current page number (0-indexed).
+</ResponseField>
+
+<ResponseField name="hasMore" type="boolean">
+  Whether more pages are available.
+</ResponseField>
+
+<ResponseField name="hasPrevious" type="boolean">
+  Whether previous pages exist.
+</ResponseField>
+
+<ResponseField name="nextPage" type="() => void">
+  Navigate to the next page.
+</ResponseField>
+
+<ResponseField name="prevPage" type="() => void">
+  Navigate to the previous page.
+</ResponseField>
+
+<ResponseField name="goToPage" type="({ pageNum: number }) => void">
+  Navigate to a specific page.
+</ResponseField>
+
+<ResponseField name="resetPagination" type="() => void">
+  Reset to page 0.
+</ResponseField>
+
+## useAggregateEvents
+
+Aggregates events by time period or custom grouping.
+
+```tsx
+import { useAggregateEvents } from 'autumn-js/react';
+
+function UsageChart() {
+  const { list: data, total, isLoading } = useAggregateEvents({
+    featureId: 'api_calls',
+    range: 'last_30_days',
+    binSize: 'day',
+  });
+  
+  if (isLoading) return <div>Loading...</div>;
+  
+  return (
+    <div>
+      <h3>Total usage: {total}</h3>
+      <Chart data={data} />
+    </div>
+  );
+}
+```
+
+### Parameters
+
+<ParamField path="featureId" type="string" required>
+  Feature ID to aggregate events for.
+</ParamField>
+
+<ParamField path="range" type="string" optional>
+  Time range preset (e.g., `'last_7_days'`, `'last_30_days'`, `'this_month'`).
+</ParamField>
+
+<ParamField path="binSize" type="'hour' | 'day' | 'week' | 'month'" optional>
+  Aggregation interval.
+</ParamField>
+
+<ParamField path="groupBy" type="string[]" optional>
+  Custom property to group by.
+</ParamField>
+
+<ParamField path="customRange" type="{ start: Date, end: Date }" optional>
+  Custom date range (overrides `range` parameter).
+</ParamField>
+
+<ParamField path="queryOptions" type="UseQueryOptions" optional>
+  TanStack Query options.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="list" type="AggregatedEvent[]">
+  Array of aggregated data points.
+</ResponseField>
+
+<ResponseField name="total" type="number">
+  Total aggregated value across all bins.
+</ResponseField>
+
+## useReferrals
+
+Manages referral codes for the current customer.
+
+```tsx
+import { useReferrals } from 'autumn-js/react';
+
+function ReferralProgram() {
+  const { data, refetch, redeemCode, isLoading } = useReferrals({
+    programId: 'referral_program_123',
+  });
+  
+  const handleCreateCode = async () => {
+    const result = await refetch();
+    console.log('Your code:', result.data?.code);
+  };
+  
+  const handleRedeemCode = async (code: string) => {
+    await redeemCode({ code });
+  };
+  
+  return (
+    <div>
+      {data?.code ? (
+        <div>Your referral code: {data.code}</div>
+      ) : (
+        <button onClick={handleCreateCode}>Create Referral Code</button>
+      )}
+    </div>
+  );
+}
+```
+
+### Parameters
+
+<ParamField path="programId" type="string" required>
+  ID of the referral program.
+</ParamField>
+
+<ParamField path="queryOptions" type="UseQueryOptions" optional>
+  TanStack Query options. Note: Query is disabled by default, call `refetch()` to create a code.
+</ParamField>
+
+### Return Value
+
+<ResponseField name="data" type="{ code: string } | undefined">
+  The created referral code data.
+</ResponseField>
+
+<ResponseField name="refetch" type="() => Promise<...>">
+  Create or fetch a new referral code.
+</ResponseField>
+
+<ResponseField name="redeemCode" type="(params: { code: string }) => Promise<...>">
+  Redeem a referral code for the current customer.
+</ResponseField>
+
+## Advanced: Direct Client Usage
+
+For non-React contexts, use the client directly:
+
+```tsx
+import { createAutumnClient } from 'autumn-js/react';
+
+const client = createAutumnClient({
+  backendUrl: 'https://api.example.com',
+  pathPrefix: '/api/autumn',
+  includeCredentials: true,
+});
+
+const customer = await client.getOrCreateCustomer();
+const plans = await client.listPlans();
+```
+
+## Error Handling
+
+All hooks handle errors using TanStack Query's error handling:
+
+```tsx
+const { error, isError } = useCustomer();
+
+if (isError && error instanceof AutumnClientError) {
+  console.error('Failed to load customer:', error.message);
+  console.error('Error code:', error.code);
+}
+```
+
+For mutations (billing methods), use try/catch:
+
+```tsx
+const { attach } = useCustomer();
+
+try {
+  await attach({ planId: 'plan_pro' });
+} catch (error) {
+  if (error instanceof AutumnClientError) {
+    alert(`Failed to subscribe: ${error.message}`);
+  }
+}
+```
