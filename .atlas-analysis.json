@@ -1,0 +1,173 @@
+{
+  "projectType": "saas",
+  "projectName": "Autumn",
+  "projectDescription": "Open-source pricing and billing platform that integrates with Stripe to handle any pricing model",
+  "theme": "palm",
+  "primaryColor": "#D97706",
+  "lightColor": "#FCD34D",
+  "darkColor": "#92400E",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "self-hosting"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/products-and-plans",
+              "concepts/customers",
+              "concepts/features",
+              "concepts/pricing-models",
+              "concepts/billing-lifecycle"
+            ]
+          },
+          {
+            "group": "Dashboard Guides",
+            "pages": [
+              "guides/creating-products",
+              "guides/managing-customers",
+              "guides/invoices",
+              "guides/analytics"
+            ]
+          },
+          {
+            "group": "Integration",
+            "pages": [
+              "integration/attach",
+              "integration/check",
+              "integration/track",
+              "integration/webhooks"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "SDKs",
+        "groups": [
+          {
+            "group": "JavaScript/TypeScript",
+            "pages": [
+              "sdks/javascript/installation",
+              "sdks/javascript/react-hooks",
+              "sdks/javascript/backend-integration"
+            ]
+          },
+          {
+            "group": "Python",
+            "pages": [
+              "sdks/python/installation",
+              "sdks/python/usage"
+            ]
+          },
+          {
+            "group": "Framework Adapters",
+            "pages": [
+              "sdks/adapters/hono",
+              "sdks/adapters/nextjs",
+              "sdks/adapters/better-auth"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/overview",
+              "api/authentication",
+              "api/errors"
+            ]
+          },
+          {
+            "group": "Core Endpoints",
+            "pages": [
+              "api/attach",
+              "api/check",
+              "api/track"
+            ]
+          },
+          {
+            "group": "Customers",
+            "pages": [
+              "api/customers/create",
+              "api/customers/get",
+              "api/customers/list",
+              "api/customers/update",
+              "api/customers/delete"
+            ]
+          },
+          {
+            "group": "Products",
+            "pages": [
+              "api/products/create",
+              "api/products/get",
+              "api/products/list",
+              "api/products/update",
+              "api/products/delete"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "api/features/create",
+              "api/features/get",
+              "api/features/list",
+              "api/features/update",
+              "api/features/delete"
+            ]
+          },
+          {
+            "group": "Invoices",
+            "pages": [
+              "api/invoices/get",
+              "api/invoices/list"
+            ]
+          },
+          {
+            "group": "Events",
+            "pages": [
+              "api/events/list",
+              "api/events/aggregate"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Flexible pricing models (subscriptions, credits, usage-based, seat-based)",
+    "Stripe integration with automatic payment handling",
+    "React hooks for seamless frontend integration",
+    "Real-time usage tracking and limits",
+    "Webhook support for billing events",
+    "Self-hosted or cloud deployment",
+    "TypeScript and Python SDKs",
+    "Dashboard for managing products, customers, and analytics"
+  ],
+  "publicApiSurface": [
+    "/attach - Handle all purchase flows, upgrades, downgrades",
+    "/check - Verify customer access and remaining usage",
+    "/track - Record usage events for metered features",
+    "/customers - CRUD operations for customers",
+    "/products - Manage products and pricing plans",
+    "/features - Configure feature access and limits",
+    "/invoices - Retrieve invoice data",
+    "/events - Query usage events and analytics",
+    "useAutumn() - React hook for client-side integration",
+    "useCustomer() - React hook for customer data",
+    "AutumnProvider - React context provider",
+    "Hono adapter - Backend integration for Hono framework",
+    "Next.js adapter - Backend integration for Next.js",
+    "Better Auth plugin - Authentication integration"
+  ]
+}
